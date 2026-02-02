@@ -7,8 +7,8 @@ from rest_framework.permissions import IsAuthenticated
 
 from company.permissions import HasCompanyContext
 from .client import SAPClient
-from .exceptions import SAPConnectionError, SAPDataError
-from .serializers import POSerializer
+from .exceptions import SAPConnectionError, SAPDataError, SAPValidationError
+from .serializers import POSerializer, GRPORequestSerializer, GRPOResponseSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -80,3 +80,64 @@ class POItemListAPI(APIView):
             {"detail": "PO not found"},
             status=status.HTTP_404_NOT_FOUND
         )
+
+
+class CreateGRPOAPI(APIView):
+    """
+    Create Goods Receipt PO (Purchase Delivery Note) in SAP B1
+
+    POST payload example:
+    {
+        "CardCode": "c001",
+        "DocumentLines": [
+            {
+                "ItemCode": "c001",
+                "Quantity": "100",
+                "TaxCode": "T1",
+                "UnitPrice": "50"
+            }
+        ]
+    }
+    """
+    permission_classes = [IsAuthenticated, HasCompanyContext]
+
+    def post(self, request):
+        # Validate request payload
+        serializer = GRPORequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {"detail": "Invalid request data", "errors": serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # Get SAP client for the user's company
+            client = SAPClient(company_code=request.company.company.code)
+
+            # Create GRPO in SAP
+            result = client.create_grpo(serializer.validated_data)
+
+            # Return response
+            response_serializer = GRPOResponseSerializer(data=result)
+            if response_serializer.is_valid():
+                return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+            return Response(result, status=status.HTTP_201_CREATED)
+
+        except SAPValidationError as e:
+            logger.error(f"SAP validation error in CreateGRPOAPI: {e}")
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except SAPConnectionError as e:
+            logger.error(f"SAP connection error in CreateGRPOAPI: {e}")
+            return Response(
+                {"detail": "SAP system is currently unavailable. Please try again later."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        except SAPDataError as e:
+            logger.error(f"SAP data error in CreateGRPOAPI: {e}")
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
