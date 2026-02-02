@@ -1,0 +1,14 @@
+from django.urls import path
+from .views import (
+    RawMaterialGateEntryFullView,
+    DailyNeedGateEntryFullView,
+    MaintenanceGateEntryFullView,
+    ConstructionGateEntryFullView,
+)
+
+urlpatterns = [
+    path('raw-material-gate-entry/<int:gate_entry_id>/', RawMaterialGateEntryFullView.as_view(), name='raw_material_gate_entry_full_view'),
+    path('daily-need-gate-entry/<int:gate_entry_id>/', DailyNeedGateEntryFullView.as_view(), name='daily_need_gate_entry_full_view'),
+    path('maintenance-gate-entry/<int:gate_entry_id>/', MaintenanceGateEntryFullView.as_view(), name='maintenance_gate_entry_full_view'),
+    path('construction-gate-entry/<int:gate_entry_id>/', ConstructionGateEntryFullView.as_view(), name='construction_gate_entry_full_view'),
+]

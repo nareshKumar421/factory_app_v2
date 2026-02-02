@@ -1,0 +1,26 @@
+# raw_material_gatein/models/po_receipt.py
+
+from django.db import models
+from gate_core.models import BaseModel
+from driver_management.models import VehicleEntry
+
+class POReceipt(BaseModel):
+    vehicle_entry = models.ForeignKey(
+        VehicleEntry,
+        on_delete=models.CASCADE,
+        related_name="po_receipts"
+    )
+
+    po_number = models.CharField(max_length=30)
+    supplier_code = models.CharField(max_length=30)
+    supplier_name = models.CharField(max_length=150)
+
+    invoice_no = models.CharField(max_length=50, blank=True)
+    invoice_date = models.DateField(null=True, blank=True)
+    challan_no = models.CharField(max_length=50, blank=True)
+
+    class Meta:
+        unique_together = ("vehicle_entry", "po_number")
+
+    def __str__(self):
+        return f"{self.po_number} ({self.vehicle_entry.entry_no})"
