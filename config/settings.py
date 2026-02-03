@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     'maintenance_gatein',
     'construction_gatein',
     'person_gatein',
+    'notifications',
 ]
 
 MIDDLEWARE = [
@@ -200,3 +201,7 @@ COMPANY_DB = {
     "JIVO_OIL": "TEST_OIL_15122025",
     "JIVO_MART": "TEST_MART_15122025",
 }
+
+
+# Firebase Cloud Messaging Settings
+FCM_CREDENTIALS_PATH = BASE_DIR / "config" / "credentials.json"
