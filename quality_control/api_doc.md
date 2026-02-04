@@ -1,0 +1,544 @@
+# Quality Control API Documentation
+
+## Overview
+
+This module handles the quality control workflow for raw material inspection at Jivo Wellness factory gates.
+
+## Authentication
+
+All endpoints require JWT authentication. Include the token in the Authorization header:
+```
+Authorization: Bearer <access_token>
+```
+
+All endpoints also require the `Company-Code` header:
+```
+Company-Code: <company_code>
+```
+
+---
+
+## Permissions
+
+The API uses Django's permission-based access control. Assign these permissions to users via Django Admin or programmatically.
+
+### Available Permissions
+
+| Permission | Codename | Description |
+|------------|----------|-------------|
+| Can create arrival slip | `can_create_arrival_slip` | Create material arrival slips |
+| Can edit arrival slip | `can_edit_arrival_slip` | Edit material arrival slips |
+| Can submit arrival slip | `can_submit_arrival_slip` | Submit arrival slips to QA |
+| Can view arrival slip | `can_view_arrival_slip` | View material arrival slips |
+| Can create inspection | `can_create_inspection` | Create raw material inspections |
+| Can edit inspection | `can_edit_inspection` | Edit raw material inspections |
+| Can submit inspection | `can_submit_inspection` | Submit inspections for approval |
+| Can view inspection | `can_view_inspection` | View raw material inspections |
+| Can approve as chemist | `can_approve_as_chemist` | Approve as QA Chemist |
+| Can approve as QAM | `can_approve_as_qam` | Approve as QA Manager |
+| Can reject inspection | `can_reject_inspection` | Reject inspections |
+| Can manage material types | `can_manage_material_types` | Manage material type master data |
+| Can manage QC parameters | `can_manage_qc_parameters` | Manage QC parameter definitions |
+
+### Assigning Permissions
+
+```python
+from django.contrib.auth.models import Permission
+from django.contrib.contenttypes.models import ContentType
+from quality_control.models import MaterialArrivalSlip
+
+# Get the permission
+perm = Permission.objects.get(codename='can_create_arrival_slip')
+
+# Assign to user
+user.user_permissions.add(perm)
+
+# Or assign to group
+group.permissions.add(perm)
+```
+
+---
+
+## API Endpoints
+
+### Material Type APIs
+
+#### List/Create Material Types
+```
+GET  /api/v1/quality-control/material-types/
+POST /api/v1/quality-control/material-types/
+```
+
+**Permission:** `can_manage_material_types`
+
+**POST Request Body:**
+```json
+{
+    "code": "CAP_BLUE",
+    "name": "Cap Blue Plain",
+    "description": "Blue plain caps for water bottles"
+}
+```
+
+**Response:**
+```json
+{
+    "id": 1,
+    "code": "CAP_BLUE",
+    "name": "Cap Blue Plain",
+    "description": "Blue plain caps for water bottles",
+    "company": 1,
+    "is_active": true,
+    "created_at": "2026-02-04T10:00:00Z",
+    "updated_at": "2026-02-04T10:00:00Z"
+}
+```
+
+#### Get/Update/Delete Material Type
+```
+GET    /api/v1/quality-control/material-types/{material_type_id}/
+PUT    /api/v1/quality-control/material-types/{material_type_id}/
+DELETE /api/v1/quality-control/material-types/{material_type_id}/
+```
+
+**Permission:** `can_manage_material_types`
+
+---
+
+### QC Parameter APIs
+
+#### List/Create QC Parameters
+```
+GET  /api/v1/quality-control/material-types/{material_type_id}/parameters/
+POST /api/v1/quality-control/material-types/{material_type_id}/parameters/
+```
+
+**Permission:** `can_manage_qc_parameters`
+
+**POST Request Body:**
+```json
+{
+    "parameter_code": "WEIGHT",
+    "parameter_name": "Weight",
+    "standard_value": "1.35±0.10",
+    "parameter_type": "RANGE",
+    "min_value": 1.25,
+    "max_value": 1.45,
+    "uom": "grams",
+    "sequence": 1,
+    "is_mandatory": true
+}
+```
+
+**Parameter Types:**
+- `NUMERIC` - Single numeric value
+- `TEXT` - Text/descriptive value
+- `BOOLEAN` - Pass/Fail
+- `RANGE` - Numeric range with min/max validation
+
+**Response:**
+```json
+{
+    "id": 1,
+    "material_type": 1,
+    "parameter_name": "Weight",
+    "parameter_code": "WEIGHT",
+    "standard_value": "1.35±0.10",
+    "parameter_type": "RANGE",
+    "min_value": "1.2500",
+    "max_value": "1.4500",
+    "uom": "grams",
+    "sequence": 1,
+    "is_mandatory": true,
+    "is_active": true,
+    "created_at": "2026-02-04T10:00:00Z",
+    "updated_at": "2026-02-04T10:00:00Z"
+}
+```
+
+#### Get/Update/Delete QC Parameter
+```
+GET    /api/v1/quality-control/parameters/{parameter_id}/
+PUT    /api/v1/quality-control/parameters/{parameter_id}/
+DELETE /api/v1/quality-control/parameters/{parameter_id}/
+```
+
+**Permission:** `can_manage_qc_parameters`
+
+---
+
+### Material Arrival Slip APIs
+
+#### Create/Update/Get Arrival Slip
+```
+GET  /api/v1/quality-control/gate-entries/{gate_entry_id}/arrival-slip/
+POST /api/v1/quality-control/gate-entries/{gate_entry_id}/arrival-slip/
+```
+
+**Permission:** `can_create_arrival_slip` or `can_edit_arrival_slip` (POST), `can_view_arrival_slip` (GET)
+
+**POST Request Body:**
+```json
+{
+    "particulars": "Cap Blue Plain (Water)",
+    "arrival_datetime": "2026-02-03T10:30:00Z",
+    "weighing_required": false,
+    "party_name": "V Form Techno Packs Ltd",
+    "billing_qty": 1500000,
+    "billing_uom": "Pcs",
+    "truck_no_as_per_bill": "HR46F-3009",
+    "commercial_invoice_no": "3266",
+    "eway_bill_no": "393180169231",
+    "bilty_no": "3158",
+    "has_certificate_of_analysis": true,
+    "has_certificate_of_quantity": true,
+    "remarks": ""
+}
+```
+
+**Response:**
+```json
+{
+    "id": 1,
+    "vehicle_entry": 1,
+    "particulars": "Cap Blue Plain (Water)",
+    "arrival_datetime": "2026-02-03T10:30:00Z",
+    "weighing_required": false,
+    "party_name": "V Form Techno Packs Ltd",
+    "billing_qty": "1500000.000",
+    "billing_uom": "Pcs",
+    "in_time_to_qa": null,
+    "truck_no_as_per_bill": "HR46F-3009",
+    "commercial_invoice_no": "3266",
+    "eway_bill_no": "393180169231",
+    "bilty_no": "3158",
+    "has_certificate_of_analysis": true,
+    "has_certificate_of_quantity": true,
+    "status": "DRAFT",
+    "is_submitted": false,
+    "submitted_at": null,
+    "submitted_by": null,
+    "submitted_by_name": null,
+    "remarks": "",
+    "created_at": "2026-02-04T10:00:00Z",
+    "updated_at": "2026-02-04T10:00:00Z"
+}
+```
+
+#### Submit Arrival Slip to QA
+```
+POST /api/v1/quality-control/arrival-slips/{slip_id}/submit/
+```
+
+**Permission:** `can_submit_arrival_slip`
+
+**Response:** Returns the updated arrival slip with `status: "SUBMITTED"`
+
+---
+
+### Raw Material Inspection APIs
+
+#### List Pending Inspections
+```
+GET /api/v1/quality-control/inspections/pending/
+```
+
+**Permission:** `can_view_inspection`
+
+**Response:**
+```json
+[
+    {
+        "gate_entry_id": 1,
+        "entry_no": "GE-20260204-0001",
+        "status": "ARRIVAL_SLIP_SUBMITTED",
+        "arrival_slip": { ... }
+    }
+]
+```
+
+#### Create/Update/Get Inspection
+```
+GET  /api/v1/quality-control/po-items/{po_item_id}/inspection/
+POST /api/v1/quality-control/po-items/{po_item_id}/inspection/
+```
+
+**Permission:** `can_create_inspection` or `can_edit_inspection` (POST), `can_view_inspection` (GET)
+
+**POST Request Body:**
+```json
+{
+    "inspection_date": "2026-02-03",
+    "description_of_material": "Cap Blue Plain (Water)",
+    "sap_code": "CAP-001",
+    "supplier_name": "V Form Techno Packs Ltd",
+    "manufacturer_name": "V Form Techno Packs Ltd",
+    "supplier_batch_lot_no": "B2026-001",
+    "unit_packing": "1500000 Pcs",
+    "purchase_order_no": "PO-2026-001",
+    "invoice_bill_no": "3266",
+    "vehicle_no": "HR46F-3009",
+    "material_type_id": 1,
+    "remarks": ""
+}
+```
+
+**Response:**
+```json
+{
+    "id": 1,
+    "po_item_receipt": 1,
+    "report_no": "RPT-20260203-0001",
+    "internal_lot_no": "LOT-20260203-0001",
+    "inspection_date": "2026-02-03",
+    "description_of_material": "Cap Blue Plain (Water)",
+    "sap_code": "CAP-001",
+    "supplier_name": "V Form Techno Packs Ltd",
+    "manufacturer_name": "V Form Techno Packs Ltd",
+    "supplier_batch_lot_no": "B2026-001",
+    "unit_packing": "1500000 Pcs",
+    "purchase_order_no": "PO-2026-001",
+    "invoice_bill_no": "3266",
+    "vehicle_no": "HR46F-3009",
+    "material_type": 1,
+    "material_type_name": "Cap Blue Plain",
+    "final_status": "PENDING",
+    "qa_chemist": null,
+    "qa_chemist_name": null,
+    "qa_chemist_approved_at": null,
+    "qa_chemist_remarks": "",
+    "qam": null,
+    "qam_name": null,
+    "qam_approved_at": null,
+    "qam_remarks": "",
+    "workflow_status": "DRAFT",
+    "is_locked": false,
+    "remarks": "",
+    "parameter_results": [
+        {
+            "id": 1,
+            "parameter_master": 1,
+            "parameter_name": "Weight",
+            "standard_value": "1.35±0.10",
+            "result_value": "",
+            "result_numeric": null,
+            "is_within_spec": null,
+            "remarks": ""
+        }
+    ],
+    "created_at": "2026-02-04T10:00:00Z",
+    "updated_at": "2026-02-04T10:00:00Z"
+}
+```
+
+#### Update Parameter Results
+```
+GET  /api/v1/quality-control/inspections/{inspection_id}/parameters/
+POST /api/v1/quality-control/inspections/{inspection_id}/parameters/
+```
+
+**Permission:** `can_create_inspection` or `can_edit_inspection`
+
+**POST Request Body:**
+```json
+{
+    "results": [
+        {
+            "parameter_master_id": 1,
+            "result_value": "Avg-1.40",
+            "result_numeric": 1.40,
+            "is_within_spec": true,
+            "remarks": ""
+        },
+        {
+            "parameter_master_id": 2,
+            "result_value": "Same",
+            "is_within_spec": true,
+            "remarks": ""
+        }
+    ]
+}
+```
+
+#### Submit Inspection for Approval
+```
+POST /api/v1/quality-control/inspections/{inspection_id}/submit/
+```
+
+**Permission:** `can_submit_inspection`
+
+**Response:** Returns the updated inspection with `workflow_status: "SUBMITTED"`
+
+---
+
+### Approval APIs
+
+#### QA Chemist Approval
+```
+POST /api/v1/quality-control/inspections/{inspection_id}/approve/chemist/
+```
+
+**Permission:** `can_approve_as_chemist`
+
+**Request Body:**
+```json
+{
+    "remarks": "Approved by QA Chemist"
+}
+```
+
+**Response:** Returns the updated inspection with `workflow_status: "QA_CHEMIST_APPROVED"`
+
+#### QA Manager Approval
+```
+POST /api/v1/quality-control/inspections/{inspection_id}/approve/qam/
+```
+
+**Permission:** `can_approve_as_qam`
+
+**Request Body:**
+```json
+{
+    "remarks": "Approved by QA Manager",
+    "final_status": "ACCEPTED"
+}
+```
+
+**Final Status Options:**
+- `ACCEPTED` - Material accepted
+- `REJECTED` - Material rejected
+- `HOLD` - Material on hold
+
+**Response:** Returns the updated inspection with `workflow_status: "QAM_APPROVED"` and `is_locked: true`
+
+#### Reject Inspection
+```
+POST /api/v1/quality-control/inspections/{inspection_id}/reject/
+```
+
+**Permission:** `can_reject_inspection`
+
+**Request Body:**
+```json
+{
+    "remarks": "Rejected due to quality issues"
+}
+```
+
+**Response:** Returns the updated inspection with `final_status: "REJECTED"` and sends back to security guard
+
+---
+
+## Workflow Status States
+
+### Arrival Slip Status
+| Status | Description |
+|--------|-------------|
+| `DRAFT` | Initial state, can be edited |
+| `SUBMITTED` | Submitted to QA |
+| `REJECTED` | Rejected by QA, sent back to security |
+
+### Inspection Workflow Status
+| Status | Description |
+|--------|-------------|
+| `DRAFT` | Initial state, can be edited |
+| `SUBMITTED` | Submitted for QA Chemist approval |
+| `QA_CHEMIST_APPROVED` | Approved by QA Chemist, awaiting QAM |
+| `QAM_APPROVED` | Approved by QA Manager |
+| `COMPLETED` | Workflow completed |
+
+### Inspection Final Status
+| Status | Description |
+|--------|-------------|
+| `PENDING` | Awaiting inspection result |
+| `ACCEPTED` | Material accepted |
+| `REJECTED` | Material rejected |
+| `HOLD` | Material on hold |
+
+### Gate Entry Status
+| Status | Description |
+|--------|-------------|
+| `DRAFT` | Initial state |
+| `SECURITY_CHECK_DONE` | Security check completed |
+| `ARRIVAL_SLIP_SUBMITTED` | Arrival slip submitted to QA |
+| `ARRIVAL_SLIP_REJECTED` | Arrival slip rejected by QA |
+| `IN_PROGRESS` | PO items being received |
+| `QC_PENDING` | QC inspection in progress |
+| `QC_IN_REVIEW` | Awaiting QA Chemist approval |
+| `QC_AWAITING_QAM` | Awaiting QA Manager approval |
+| `QC_COMPLETED` | All QC approvals done |
+| `COMPLETED` | Gate entry completed |
+| `CANCELLED` | Gate entry cancelled |
+
+---
+
+## Complete Workflow
+
+```
+1. Security Guard creates Arrival Slip
+   POST /gate-entries/{id}/arrival-slip/
+
+2. Security Guard submits to QA
+   POST /arrival-slips/{id}/submit/
+   → Gate Entry status: ARRIVAL_SLIP_SUBMITTED
+
+3. QA creates Inspection with parameters
+   POST /po-items/{id}/inspection/
+   → Gate Entry status: QC_PENDING
+
+4. QA fills parameter results
+   POST /inspections/{id}/parameters/
+
+5. QA submits for approval
+   POST /inspections/{id}/submit/
+   → Gate Entry status: QC_IN_REVIEW
+
+6. QA Chemist approves
+   POST /inspections/{id}/approve/chemist/
+   → Gate Entry status: QC_AWAITING_QAM
+
+7. QA Manager approves
+   POST /inspections/{id}/approve/qam/
+   → Gate Entry status: QC_COMPLETED (when all items approved)
+
+8. Security Guard completes gate entry
+```
+
+### Rejection Flow
+```
+QA rejects inspection
+POST /inspections/{id}/reject/
+→ Inspection: final_status=REJECTED, is_locked=true
+→ Arrival Slip: status=REJECTED, is_submitted=false
+→ Gate Entry status: ARRIVAL_SLIP_REJECTED
+
+Security Guard updates arrival slip and resubmits
+POST /gate-entries/{id}/arrival-slip/
+POST /arrival-slips/{id}/submit/
+→ Workflow restarts
+```
+
+---
+
+## Error Responses
+
+### 400 Bad Request
+```json
+{
+    "detail": "Arrival slip already submitted"
+}
+```
+
+### 403 Forbidden
+```json
+{
+    "detail": "You do not have permission to perform this action."
+}
+```
+
+### 404 Not Found
+```json
+{
+    "detail": "Not found."
+}
+```

@@ -1,0 +1,195 @@
+# quality_control/models/raw_material_inspection.py
+
+from django.db import models
+from django.conf import settings
+from django.utils import timezone
+from gate_core.models import BaseModel
+from raw_material_gatein.models import POItemReceipt
+from ..enums import InspectionStatus, InspectionWorkflowStatus
+
+User = settings.AUTH_USER_MODEL
+
+
+class RawMaterialInspection(BaseModel):
+    """
+    Raw Material Inspection Report - filled by QA/Lab personnel.
+    This replaces the old QCInspection model with support for dynamic parameters.
+    """
+    po_item_receipt = models.OneToOneField(
+        POItemReceipt,
+        on_delete=models.CASCADE,
+        related_name="inspection"
+    )
+
+    # Auto-generated identifiers
+    report_no = models.CharField(max_length=50, unique=True)
+    internal_lot_no = models.CharField(max_length=50, unique=True)
+
+    # Inspection Date
+    inspection_date = models.DateField()
+
+    # Material Information
+    description_of_material = models.TextField()
+    sap_code = models.CharField(max_length=50, blank=True)
+
+    # Supplier Information
+    supplier_name = models.CharField(max_length=200)
+    manufacturer_name = models.CharField(max_length=200, blank=True)
+    supplier_batch_lot_no = models.CharField(max_length=100)
+
+    # Unit and PO Information
+    unit_packing = models.CharField(max_length=100, blank=True)
+    purchase_order_no = models.CharField(max_length=50)
+    invoice_bill_no = models.CharField(max_length=100, blank=True)
+
+    # Vehicle number for reference
+    vehicle_no = models.CharField(max_length=50, blank=True)
+
+    # Material Type (for dynamic parameters)
+    material_type = models.ForeignKey(
+        "quality_control.MaterialType",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="inspections"
+    )
+
+    # Final Status
+    final_status = models.CharField(
+        max_length=20,
+        choices=InspectionStatus.choices,
+        default=InspectionStatus.PENDING
+    )
+
+    # Approval Chain - QA Chemist
+    qa_chemist = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="inspections_as_chemist"
+    )
+    qa_chemist_approved_at = models.DateTimeField(null=True, blank=True)
+    qa_chemist_remarks = models.TextField(blank=True)
+
+    # Approval Chain - QA Manager
+    qam = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="inspections_as_qam"
+    )
+    qam_approved_at = models.DateTimeField(null=True, blank=True)
+    qam_remarks = models.TextField(blank=True)
+
+    # Workflow status
+    workflow_status = models.CharField(
+        max_length=30,
+        choices=InspectionWorkflowStatus.choices,
+        default=InspectionWorkflowStatus.DRAFT
+    )
+
+    is_locked = models.BooleanField(default=False)
+    remarks = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["workflow_status"]),
+            models.Index(fields=["final_status"]),
+            models.Index(fields=["inspection_date"]),
+        ]
+        permissions = [
+            ("can_create_inspection", "Can create raw material inspection"),
+            ("can_edit_inspection", "Can edit raw material inspection"),
+            ("can_submit_inspection", "Can submit inspection for approval"),
+            ("can_view_inspection", "Can view raw material inspection"),
+            ("can_approve_as_chemist", "Can approve inspection as QA Chemist"),
+            ("can_approve_as_qam", "Can approve inspection as QA Manager"),
+            ("can_reject_inspection", "Can reject inspection"),
+        ]
+
+    def __str__(self):
+        return f"Inspection {self.report_no} - {self.description_of_material[:50]}"
+
+    @staticmethod
+    def generate_report_no():
+        """Generate unique report number."""
+        from django.utils import timezone
+        today = timezone.now()
+        prefix = f"RPT-{today.strftime('%Y%m%d')}"
+        last = RawMaterialInspection.objects.filter(
+            report_no__startswith=prefix
+        ).order_by("-report_no").first()
+
+        if last:
+            try:
+                last_num = int(last.report_no.split("-")[-1])
+                new_num = last_num + 1
+            except ValueError:
+                new_num = 1
+        else:
+            new_num = 1
+
+        return f"{prefix}-{new_num:04d}"
+
+    @staticmethod
+    def generate_lot_no():
+        """Generate unique internal lot number."""
+        from django.utils import timezone
+        today = timezone.now()
+        prefix = f"LOT-{today.strftime('%Y%m%d')}"
+        last = RawMaterialInspection.objects.filter(
+            internal_lot_no__startswith=prefix
+        ).order_by("-internal_lot_no").first()
+
+        if last:
+            try:
+                last_num = int(last.internal_lot_no.split("-")[-1])
+                new_num = last_num + 1
+            except ValueError:
+                new_num = 1
+        else:
+            new_num = 1
+
+        return f"{prefix}-{new_num:04d}"
+
+    def submit_for_approval(self):
+        """Submit inspection for QA Chemist review."""
+        self.workflow_status = InspectionWorkflowStatus.SUBMITTED
+        self.save(update_fields=["workflow_status", "updated_at"])
+
+    def approve_by_chemist(self, user, remarks=""):
+        """QA Chemist approval."""
+        self.qa_chemist = user
+        self.qa_chemist_approved_at = timezone.now()
+        self.qa_chemist_remarks = remarks
+        self.workflow_status = InspectionWorkflowStatus.QA_CHEMIST_APPROVED
+        self.save(update_fields=[
+            "qa_chemist", "qa_chemist_approved_at",
+            "qa_chemist_remarks", "workflow_status", "updated_at"
+        ])
+
+    def approve_by_qam(self, user, remarks="", final_status=InspectionStatus.ACCEPTED):
+        """QA Manager final approval."""
+        self.qam = user
+        self.qam_approved_at = timezone.now()
+        self.qam_remarks = remarks
+        self.workflow_status = InspectionWorkflowStatus.QAM_APPROVED
+        self.final_status = final_status
+        self.is_locked = True
+        self.save(update_fields=[
+            "qam", "qam_approved_at", "qam_remarks",
+            "workflow_status", "final_status", "is_locked", "updated_at"
+        ])
+
+    def reject(self, remarks=""):
+        """Reject inspection - sends back to security guard."""
+        self.final_status = InspectionStatus.REJECTED
+        self.workflow_status = InspectionWorkflowStatus.COMPLETED
+        self.is_locked = True
+        self.remarks = remarks
+        self.save(update_fields=[
+            "final_status", "workflow_status", "is_locked", "remarks", "updated_at"
+        ])

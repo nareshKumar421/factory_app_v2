@@ -8,7 +8,7 @@ class GateEntryBase(BaseModel):
     entry_no = models.CharField(max_length=30, unique=True)
 
     status = models.CharField(
-        max_length=20,
+        max_length=30,
         choices=GateEntryStatus.choices,
         default=GateEntryStatus.DRAFT
     )

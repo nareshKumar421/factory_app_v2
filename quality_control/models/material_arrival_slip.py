@@ -1,0 +1,99 @@
+# quality_control/models/material_arrival_slip.py
+
+from django.db import models
+from django.conf import settings
+from django.utils import timezone
+from gate_core.models import BaseModel
+from driver_management.models import VehicleEntry
+from ..enums import ArrivalSlipStatus
+
+User = settings.AUTH_USER_MODEL
+
+
+class MaterialArrivalSlip(BaseModel):
+    """
+    Material Arrival Slip - filled by Security Guard.
+    One-to-one with VehicleEntry.
+    """
+    vehicle_entry = models.OneToOneField(
+        VehicleEntry,
+        on_delete=models.CASCADE,
+        related_name="arrival_slip"
+    )
+
+    # Arrival Information
+    particulars = models.TextField(help_text="Item description")
+    arrival_datetime = models.DateTimeField()
+    weighing_required = models.BooleanField(default=False)
+
+    # Party/Supplier Information
+    party_name = models.CharField(max_length=200)
+
+    # Quantity Information
+    billing_qty = models.DecimalField(max_digits=12, decimal_places=3)
+    billing_uom = models.CharField(max_length=20, blank=True)
+
+    # Time Tracking
+    in_time_to_qa = models.DateTimeField(null=True, blank=True)
+
+    # Vehicle/Transport Details
+    truck_no_as_per_bill = models.CharField(max_length=50)
+
+    # Document References
+    commercial_invoice_no = models.CharField(max_length=100, blank=True)
+    eway_bill_no = models.CharField(max_length=100, blank=True)
+    bilty_no = models.CharField(max_length=100, blank=True)
+
+    # Certificates
+    has_certificate_of_analysis = models.BooleanField(default=False)
+    has_certificate_of_quantity = models.BooleanField(default=False)
+
+    # Status and Workflow
+    status = models.CharField(
+        max_length=20,
+        choices=ArrivalSlipStatus.choices,
+        default=ArrivalSlipStatus.DRAFT
+    )
+    is_submitted = models.BooleanField(default=False)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    submitted_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="submitted_arrival_slips"
+    )
+
+    remarks = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        permissions = [
+            ("can_create_arrival_slip", "Can create material arrival slip"),
+            ("can_edit_arrival_slip", "Can edit material arrival slip"),
+            ("can_submit_arrival_slip", "Can submit arrival slip to QA"),
+            ("can_view_arrival_slip", "Can view material arrival slip"),
+        ]
+
+    def __str__(self):
+        return f"Arrival Slip - {self.vehicle_entry.entry_no}"
+
+    def submit_to_qa(self, user):
+        """Submit the arrival slip to QA for inspection."""
+        self.is_submitted = True
+        self.submitted_at = timezone.now()
+        self.submitted_by = user
+        self.status = ArrivalSlipStatus.SUBMITTED
+        self.in_time_to_qa = timezone.now()
+        self.save(update_fields=[
+            "is_submitted", "submitted_at", "submitted_by",
+            "status", "in_time_to_qa", "updated_at"
+        ])
+
+    def reject_by_qa(self, remarks=""):
+        """Mark as rejected by QA - sends back to security guard."""
+        self.status = ArrivalSlipStatus.REJECTED
+        self.is_submitted = False
+        if remarks:
+            self.remarks = remarks
+        self.save(update_fields=["status", "is_submitted", "remarks", "updated_at"])
