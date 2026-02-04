@@ -2,194 +2,74 @@
 
 ## Overview
 
-The **Quality Control Module** handles quality inspection for raw material PO items. It tracks sample collection, batch information, and QC pass/fail status for each received item.
+The **Quality Control Module** handles the quality control workflow for raw material inspection at the factory gates. It supports dynamic QC parameters per material type and a multi-level approval workflow.
+
+---
+
+## Data Flow
+
+```
+POItemReceipt
+      | (OneToOne)
+MaterialArrivalSlip (Security Guard fills)
+      | (OneToOne)
+RawMaterialInspection (QA fills)
+      | (ForeignKey)
+InspectionParameterResult (Dynamic parameters)
+```
 
 ---
 
 ## Models
 
-### QCInspection
+### MaterialType
+Master data for material types. Each material type can have different QC parameters.
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `po_item_receipt` | OneToOneField | Link to POItemReceipt (CASCADE) |
-| `qc_status` | CharField(20) | QC result status |
-| `sample_collected` | BooleanField | Sample collection flag (default: False) |
-| `batch_no` | CharField(50) | Batch/lot number |
-| `expiry_date` | DateField | Product expiry date |
-| `inspected_by` | ForeignKey | QC inspector (User) |
-| `inspection_time` | DateTimeField | Auto-generated |
-| `remarks` | TextField | QC notes/observations |
-| `is_locked` | BooleanField | Lock status (default: False) |
-| `created_at` | DateTimeField | Auto-generated |
-| `created_by` | ForeignKey | User who created |
+### QCParameterMaster
+Defines QC parameters for each material type (e.g., Weight, Colour, pH).
 
-**QC Status Choices:**
+### MaterialArrivalSlip
+Created by Security Guard for each PO item that arrives. Contains arrival information, transport details, and document references.
 
-| Code | Display | Locks Record |
-|------|---------|--------------|
-| `PENDING` | Pending | No |
-| `PASSED` | Passed | Yes |
-| `FAILED` | Failed | Yes |
+### RawMaterialInspection
+Created by QA/Lab personnel for each arrival slip. Contains inspection results and approval chain.
 
-**Lock Behavior:** Once status is `PASSED` or `FAILED`, the record is locked and cannot be modified.
+### InspectionParameterResult
+Stores actual test results for each QC parameter.
+
+---
+
+## Workflow Status States
+
+### Arrival Slip Status
+| Status | Description |
+|--------|-------------|
+| `DRAFT` | Initial state, can be edited |
+| `SUBMITTED` | Submitted to QA |
+| `REJECTED` | Rejected by QA, sent back to security |
+
+### Inspection Workflow Status
+| Status | Description |
+|--------|-------------|
+| `DRAFT` | Initial state, can be edited |
+| `SUBMITTED` | Submitted for QA Chemist approval |
+| `QA_CHEMIST_APPROVED` | Approved by QA Chemist, awaiting QAM |
+| `QAM_APPROVED` | Approved by QA Manager |
+| `COMPLETED` | Workflow completed |
+
+### Inspection Final Status
+| Status | Description |
+|--------|-------------|
+| `PENDING` | Awaiting inspection result |
+| `ACCEPTED` | Material accepted |
+| `REJECTED` | Material rejected |
+| `HOLD` | Material on hold |
 
 ---
 
 ## API Documentation
 
-### Base URL
-```
-/api/v1/quality-control/
-```
-
-### Headers Required
-```
-Authorization: Bearer <access_token>
-```
-
----
-
-### 1. Create/Update QC Inspection
-
-```
-POST /api/v1/quality-control/po-items/{po_item_id}/qc/
-```
-
-**Request Body:**
-```json
-{
-    "qc_status": "PENDING",
-    "sample_collected": true,
-    "batch_no": "BATCH-2026-001",
-    "expiry_date": "2027-01-15",
-    "remarks": "Sample sent to lab for testing"
-}
-```
-
-**Response (200 OK):**
-```json
-{
-    "id": 1,
-    "qc_status": "PENDING",
-    "sample_collected": true,
-    "batch_no": "BATCH-2026-001",
-    "expiry_date": "2027-01-15",
-    "inspected_by": 1,
-    "inspection_time": "2026-01-15T10:00:00Z",
-    "remarks": "Sample sent to lab for testing",
-    "is_locked": false
-}
-```
-
-**Request Body (Final QC Decision):**
-```json
-{
-    "qc_status": "PASSED",
-    "remarks": "All quality parameters within acceptable limits"
-}
-```
-
-**Response (200 OK):**
-```json
-{
-    "id": 1,
-    "qc_status": "PASSED",
-    "sample_collected": true,
-    "batch_no": "BATCH-2026-001",
-    "expiry_date": "2027-01-15",
-    "inspected_by": 1,
-    "inspection_time": "2026-01-15T10:00:00Z",
-    "remarks": "All quality parameters within acceptable limits",
-    "is_locked": true
-}
-```
-
-**Note:**
-- This endpoint creates a new QC inspection if one doesn't exist, or updates the existing one
-- Setting status to `PASSED` or `FAILED` automatically locks the record
-- When all QC inspections for a gate entry are completed, the entry status changes to `QC_COMPLETED`
-
----
-
-### 2. Get QC Inspection Details
-
-```
-GET /api/v1/quality-control/po-items/{po_item_id}/qc/view/
-```
-
-**Response (200 OK):**
-```json
-{
-    "id": 1,
-    "qc_status": "PASSED",
-    "sample_collected": true,
-    "batch_no": "BATCH-2026-001",
-    "expiry_date": "2027-01-15",
-    "inspected_by": 1,
-    "inspection_time": "2026-01-15T10:00:00Z",
-    "remarks": "All quality parameters within acceptable limits",
-    "is_locked": true
-}
-```
-
-**Error Response (404):**
-```json
-{
-    "detail": "QC not found"
-}
-```
-
----
-
-## QC Inspection Flow
-
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                       QC INSPECTION FLOW                                  │
-└──────────────────────────────────────────────────────────────────────────┘
-
-    ┌──────────────┐
-    │  PO Items    │
-    │  Received    │ ──► Gate entry status: QC_PENDING
-    └──────┬───────┘
-           │
-           ▼
-    ┌──────────────┐
-    │   Sample     │
-    │ Collection   │ ──► sample_collected = true
-    └──────┬───────┘     Record batch_no, expiry_date
-           │
-           ▼
-    ┌──────────────┐
-    │  Lab Testing │
-    │   (Manual)   │ ──► Physical/chemical analysis
-    └──────┬───────┘
-           │
-           ├─────────────────────────────────────┐
-           │                                     │
-           ▼                                     ▼
-    ┌──────────────┐                    ┌──────────────┐
-    │    PASSED    │                    │    FAILED    │
-    │  is_locked   │                    │  is_locked   │
-    └──────┬───────┘                    └──────┬───────┘
-           │                                     │
-           └─────────────────┬───────────────────┘
-                             │
-                             ▼
-                    ┌──────────────┐
-                    │ All Items    │
-                    │  Inspected?  │ ──► Yes: Status changes to QC_COMPLETED
-                    └──────────────┘
-```
-
----
-
-## Auto-Status Update
-
-When all PO items for a gate entry have QC status of `PASSED` or `FAILED`:
-- Gate entry status automatically changes from `QC_PENDING` to `QC_COMPLETED`
-- This is handled by the `check_and_mark_qc_completed` service
+See [api_doc.md](./api_doc.md) for complete API documentation.
 
 ---
 
@@ -201,15 +81,18 @@ quality_control/
 ├── apps.py
 ├── models/
 │   ├── __init__.py
-│   └── qc_inspection.py    # QCInspection model
-├── enums.py                # QCStatus choices
-├── serializers.py          # QCInspectionSerializer
-├── views.py                # API views
-├── urls.py                 # URL routing
-├── services/
-│   ├── __init__.py
-│   └── qc_completion.py    # Auto-status update service
-├── admin.py                # Admin configuration
+│   ├── material_type.py
+│   ├── qc_parameter_master.py
+│   ├── material_arrival_slip.py
+│   ├── raw_material_inspection.py
+│   └── inspection_parameter_result.py
+├── enums.py
+├── serializers.py
+├── views.py
+├── urls.py
+├── permissions.py
+├── admin.py
+├── api_doc.md
 └── migrations/
 ```
 
@@ -221,3 +104,4 @@ quality_control/
 |--------|-------------|
 | `raw_material_gatein` | Parent POItemReceipt |
 | `driver_management` | VehicleEntry status updates |
+| `company` | Company context for multi-tenancy |

@@ -1,3 +1,5 @@
+# quality_control/views.py
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -10,7 +12,6 @@ from raw_material_gatein.models import POItemReceipt
 from gate_core.enums import GateEntryStatus
 
 from .models import (
-    QCInspection,
     MaterialType,
     QCParameterMaster,
     MaterialArrivalSlip,
@@ -18,7 +19,6 @@ from .models import (
     InspectionParameterResult,
 )
 from .serializers import (
-    QCInspectionSerializer,
     MaterialTypeSerializer,
     MaterialTypeCreateSerializer,
     QCParameterMasterSerializer,
@@ -49,55 +49,6 @@ from .enums import (
     InspectionStatus,
     InspectionWorkflowStatus,
 )
-
-
-# ==================== Legacy QC APIs (Backward Compatibility) ====================
-
-class QCCreateUpdateAPI(APIView):
-    """
-    Create or update QC for a PO item (Legacy API)
-    """
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, po_item_id):
-        qc, _ = QCInspection.objects.get_or_create(
-            po_item_receipt_id=po_item_id
-        )
-
-        serializer = QCInspectionSerializer(
-            qc,
-            data=request.data,
-            partial=True
-        )
-        serializer.is_valid(raise_exception=True)
-
-        serializer.save(
-            inspected_by=request.user
-        )
-
-        return Response(
-            serializer.data,
-            status=status.HTTP_200_OK
-        )
-
-
-class QCDetailAPI(APIView):
-    """Legacy QC detail API"""
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, po_item_id):
-        try:
-            qc = QCInspection.objects.get(
-                po_item_receipt_id=po_item_id
-            )
-        except QCInspection.DoesNotExist:
-            return Response(
-                {"detail": "QC not found"},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        serializer = QCInspectionSerializer(qc)
-        return Response(serializer.data)
 
 
 # ==================== Material Type APIs ====================
@@ -250,18 +201,39 @@ class QCParameterDetailAPI(APIView):
 
 # ==================== Material Arrival Slip APIs ====================
 
+class ArrivalSlipListAPI(APIView):
+    """List all arrival slips for a company"""
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanViewArrivalSlip]
+
+    def get(self, request):
+        slips = MaterialArrivalSlip.objects.filter(
+            po_item_receipt__po_receipt__vehicle_entry__company=request.company.company
+        ).select_related(
+            "po_item_receipt", "po_item_receipt__po_receipt",
+            "po_item_receipt__po_receipt__vehicle_entry"
+        )
+
+        # Filter by status if provided
+        status_filter = request.query_params.get("status")
+        if status_filter:
+            slips = slips.filter(status=status_filter)
+
+        serializer = MaterialArrivalSlipSerializer(slips, many=True)
+        return Response(serializer.data)
+
+
 class ArrivalSlipCreateUpdateAPI(APIView):
-    """Create or update arrival slip for a gate entry"""
+    """Create or update arrival slip for a PO item"""
     permission_classes = [IsAuthenticated, HasCompanyContext, CanManageArrivalSlip]
 
-    def get(self, request, gate_entry_id):
-        entry = get_object_or_404(
-            VehicleEntry,
-            id=gate_entry_id,
-            company=request.company.company
+    def get(self, request, po_item_id):
+        po_item = get_object_or_404(
+            POItemReceipt,
+            id=po_item_id,
+            po_receipt__vehicle_entry__company=request.company.company
         )
         try:
-            slip = entry.arrival_slip
+            slip = po_item.arrival_slip
             serializer = MaterialArrivalSlipSerializer(slip)
             return Response(serializer.data)
         except MaterialArrivalSlip.DoesNotExist:
@@ -270,18 +242,18 @@ class ArrivalSlipCreateUpdateAPI(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-    def post(self, request, gate_entry_id):
-        entry = get_object_or_404(
-            VehicleEntry,
-            id=gate_entry_id,
-            company=request.company.company
+    def post(self, request, po_item_id):
+        po_item = get_object_or_404(
+            POItemReceipt,
+            id=po_item_id,
+            po_receipt__vehicle_entry__company=request.company.company
         )
 
         serializer = MaterialArrivalSlipCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         slip, created = MaterialArrivalSlip.objects.get_or_create(
-            vehicle_entry=entry,
+            po_item_receipt=po_item,
             defaults={
                 "created_by": request.user,
                 **serializer.validated_data
@@ -314,6 +286,20 @@ class ArrivalSlipCreateUpdateAPI(APIView):
         )
 
 
+class ArrivalSlipDetailAPI(APIView):
+    """Get arrival slip by ID"""
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanViewArrivalSlip]
+
+    def get(self, request, slip_id):
+        slip = get_object_or_404(
+            MaterialArrivalSlip,
+            id=slip_id,
+            po_item_receipt__po_receipt__vehicle_entry__company=request.company.company
+        )
+        serializer = MaterialArrivalSlipSerializer(slip)
+        return Response(serializer.data)
+
+
 class ArrivalSlipSubmitAPI(APIView):
     """Submit arrival slip to QA"""
     permission_classes = [IsAuthenticated, HasCompanyContext, CanSubmitArrivalSlip]
@@ -322,7 +308,7 @@ class ArrivalSlipSubmitAPI(APIView):
         slip = get_object_or_404(
             MaterialArrivalSlip,
             id=slip_id,
-            vehicle_entry__company=request.company.company
+            po_item_receipt__po_receipt__vehicle_entry__company=request.company.company
         )
 
         if slip.is_submitted and slip.status == ArrivalSlipStatus.SUBMITTED:
@@ -333,10 +319,11 @@ class ArrivalSlipSubmitAPI(APIView):
 
         slip.submit_to_qa(request.user)
 
-        # Update vehicle entry status
-        entry = slip.vehicle_entry
-        entry.status = GateEntryStatus.ARRIVAL_SLIP_SUBMITTED
-        entry.save(update_fields=["status"])
+        # Update vehicle entry status if needed
+        entry = slip.po_item_receipt.po_receipt.vehicle_entry
+        if entry.status in [GateEntryStatus.SECURITY_CHECK_DONE, GateEntryStatus.IN_PROGRESS]:
+            entry.status = GateEntryStatus.ARRIVAL_SLIP_SUBMITTED
+            entry.save(update_fields=["status"])
 
         return Response(
             MaterialArrivalSlipSerializer(slip).data,
@@ -347,45 +334,48 @@ class ArrivalSlipSubmitAPI(APIView):
 # ==================== Raw Material Inspection APIs ====================
 
 class InspectionPendingListAPI(APIView):
-    """List inspections pending for QA"""
+    """List arrival slips pending for QA inspection"""
     permission_classes = [IsAuthenticated, HasCompanyContext, CanViewInspection]
 
     def get(self, request):
-        # Get all vehicle entries with submitted arrival slips
-        entries = VehicleEntry.objects.filter(
-            company=request.company.company,
-            status__in=[
-                GateEntryStatus.ARRIVAL_SLIP_SUBMITTED,
-                GateEntryStatus.IN_PROGRESS,
-                GateEntryStatus.QC_PENDING,
-            ]
-        ).select_related("arrival_slip")
+        # Get all submitted arrival slips that don't have an inspection yet
+        # or have a draft/rejected inspection
+        slips = MaterialArrivalSlip.objects.filter(
+            po_item_receipt__po_receipt__vehicle_entry__company=request.company.company,
+            status=ArrivalSlipStatus.SUBMITTED
+        ).select_related(
+            "po_item_receipt", "po_item_receipt__po_receipt",
+            "po_item_receipt__po_receipt__vehicle_entry"
+        )
 
         result = []
-        for entry in entries:
-            if hasattr(entry, "arrival_slip"):
-                result.append({
-                    "gate_entry_id": entry.id,
-                    "entry_no": entry.entry_no,
-                    "status": entry.status,
-                    "arrival_slip": MaterialArrivalSlipSerializer(entry.arrival_slip).data
-                })
+        for slip in slips:
+            has_inspection = hasattr(slip, "inspection")
+            inspection_status = None
+            if has_inspection:
+                inspection_status = slip.inspection.workflow_status
+
+            result.append({
+                "arrival_slip": MaterialArrivalSlipSerializer(slip).data,
+                "has_inspection": has_inspection,
+                "inspection_status": inspection_status,
+            })
 
         return Response(result)
 
 
 class InspectionCreateUpdateAPI(APIView):
-    """Create or update inspection for a PO item"""
+    """Create or update inspection for an arrival slip"""
     permission_classes = [IsAuthenticated, HasCompanyContext, CanManageInspection]
 
-    def get(self, request, po_item_id):
-        po_item = get_object_or_404(
-            POItemReceipt,
-            id=po_item_id,
-            po_receipt__vehicle_entry__company=request.company.company
+    def get(self, request, slip_id):
+        slip = get_object_or_404(
+            MaterialArrivalSlip,
+            id=slip_id,
+            po_item_receipt__po_receipt__vehicle_entry__company=request.company.company
         )
         try:
-            inspection = po_item.inspection
+            inspection = slip.inspection
             serializer = RawMaterialInspectionSerializer(inspection)
             return Response(serializer.data)
         except RawMaterialInspection.DoesNotExist:
@@ -394,12 +384,19 @@ class InspectionCreateUpdateAPI(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-    def post(self, request, po_item_id):
-        po_item = get_object_or_404(
-            POItemReceipt,
-            id=po_item_id,
-            po_receipt__vehicle_entry__company=request.company.company
+    def post(self, request, slip_id):
+        slip = get_object_or_404(
+            MaterialArrivalSlip,
+            id=slip_id,
+            po_item_receipt__po_receipt__vehicle_entry__company=request.company.company
         )
+
+        # Check if arrival slip is submitted
+        if slip.status != ArrivalSlipStatus.SUBMITTED:
+            return Response(
+                {"detail": "Arrival slip must be submitted first"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         serializer = RawMaterialInspectionCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -415,7 +412,7 @@ class InspectionCreateUpdateAPI(APIView):
             )
 
         inspection, created = RawMaterialInspection.objects.get_or_create(
-            po_item_receipt=po_item,
+            arrival_slip=slip,
             defaults={
                 "report_no": RawMaterialInspection.generate_report_no(),
                 "internal_lot_no": RawMaterialInspection.generate_lot_no(),
@@ -453,7 +450,7 @@ class InspectionCreateUpdateAPI(APIView):
                 )
 
         # Update vehicle entry status
-        entry = po_item.po_receipt.vehicle_entry
+        entry = slip.po_item_receipt.po_receipt.vehicle_entry
         if entry.status == GateEntryStatus.ARRIVAL_SLIP_SUBMITTED:
             entry.status = GateEntryStatus.QC_PENDING
             entry.save(update_fields=["status"])
@@ -464,6 +461,20 @@ class InspectionCreateUpdateAPI(APIView):
         )
 
 
+class InspectionDetailAPI(APIView):
+    """Get inspection by ID"""
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanViewInspection]
+
+    def get(self, request, inspection_id):
+        inspection = get_object_or_404(
+            RawMaterialInspection,
+            id=inspection_id,
+            arrival_slip__po_item_receipt__po_receipt__vehicle_entry__company=request.company.company
+        )
+        serializer = RawMaterialInspectionSerializer(inspection)
+        return Response(serializer.data)
+
+
 class InspectionParameterResultsAPI(APIView):
     """Update parameter results for an inspection"""
     permission_classes = [IsAuthenticated, HasCompanyContext, CanManageInspection]
@@ -472,7 +483,7 @@ class InspectionParameterResultsAPI(APIView):
         inspection = get_object_or_404(
             RawMaterialInspection,
             id=inspection_id,
-            po_item_receipt__po_receipt__vehicle_entry__company=request.company.company
+            arrival_slip__po_item_receipt__po_receipt__vehicle_entry__company=request.company.company
         )
         results = inspection.parameter_results.all()
         serializer = InspectionParameterResultSerializer(results, many=True)
@@ -482,7 +493,7 @@ class InspectionParameterResultsAPI(APIView):
         inspection = get_object_or_404(
             RawMaterialInspection,
             id=inspection_id,
-            po_item_receipt__po_receipt__vehicle_entry__company=request.company.company
+            arrival_slip__po_item_receipt__po_receipt__vehicle_entry__company=request.company.company
         )
 
         if inspection.is_locked:
@@ -525,7 +536,7 @@ class InspectionSubmitAPI(APIView):
         inspection = get_object_or_404(
             RawMaterialInspection,
             id=inspection_id,
-            po_item_receipt__po_receipt__vehicle_entry__company=request.company.company
+            arrival_slip__po_item_receipt__po_receipt__vehicle_entry__company=request.company.company
         )
 
         if inspection.is_locked:
@@ -554,7 +565,7 @@ class InspectionSubmitAPI(APIView):
         inspection.submit_for_approval()
 
         # Update vehicle entry status
-        entry = inspection.po_item_receipt.po_receipt.vehicle_entry
+        entry = inspection.arrival_slip.po_item_receipt.po_receipt.vehicle_entry
         if entry.status == GateEntryStatus.QC_PENDING:
             entry.status = GateEntryStatus.QC_IN_REVIEW
             entry.save(update_fields=["status"])
@@ -575,7 +586,7 @@ class InspectionApproveChemistAPI(APIView):
         inspection = get_object_or_404(
             RawMaterialInspection,
             id=inspection_id,
-            po_item_receipt__po_receipt__vehicle_entry__company=request.company.company
+            arrival_slip__po_item_receipt__po_receipt__vehicle_entry__company=request.company.company
         )
 
         if inspection.is_locked:
@@ -599,7 +610,7 @@ class InspectionApproveChemistAPI(APIView):
         )
 
         # Update vehicle entry status
-        entry = inspection.po_item_receipt.po_receipt.vehicle_entry
+        entry = inspection.arrival_slip.po_item_receipt.po_receipt.vehicle_entry
         if entry.status == GateEntryStatus.QC_IN_REVIEW:
             entry.status = GateEntryStatus.QC_AWAITING_QAM
             entry.save(update_fields=["status"])
@@ -618,7 +629,7 @@ class InspectionApproveQAMAPI(APIView):
         inspection = get_object_or_404(
             RawMaterialInspection,
             id=inspection_id,
-            po_item_receipt__po_receipt__vehicle_entry__company=request.company.company
+            arrival_slip__po_item_receipt__po_receipt__vehicle_entry__company=request.company.company
         )
 
         if inspection.is_locked:
@@ -645,15 +656,25 @@ class InspectionApproveQAMAPI(APIView):
             final_status=final_status
         )
 
-        # Check if all inspections for this entry are completed
-        entry = inspection.po_item_receipt.po_receipt.vehicle_entry
+        # Check if all inspections for this vehicle entry are completed
+        entry = inspection.arrival_slip.po_item_receipt.po_receipt.vehicle_entry
         all_completed = True
+
+        # Get all PO item receipts for this entry
         for po_receipt in entry.po_receipts.all():
             for po_item in po_receipt.items.all():
-                if hasattr(po_item, "inspection"):
-                    if po_item.inspection.workflow_status != InspectionWorkflowStatus.QAM_APPROVED:
+                if hasattr(po_item, "arrival_slip"):
+                    slip = po_item.arrival_slip
+                    if hasattr(slip, "inspection"):
+                        if slip.inspection.workflow_status != InspectionWorkflowStatus.QAM_APPROVED:
+                            all_completed = False
+                            break
+                    else:
                         all_completed = False
                         break
+                else:
+                    all_completed = False
+                    break
             if not all_completed:
                 break
 
@@ -675,7 +696,7 @@ class InspectionRejectAPI(APIView):
         inspection = get_object_or_404(
             RawMaterialInspection,
             id=inspection_id,
-            po_item_receipt__po_receipt__vehicle_entry__company=request.company.company
+            arrival_slip__po_item_receipt__po_receipt__vehicle_entry__company=request.company.company
         )
 
         if inspection.is_locked:
@@ -690,13 +711,10 @@ class InspectionRejectAPI(APIView):
         remarks = serializer.validated_data.get("remarks", "")
         inspection.reject(remarks=remarks)
 
-        # Update vehicle entry status and arrival slip
-        entry = inspection.po_item_receipt.po_receipt.vehicle_entry
+        # Update vehicle entry status
+        entry = inspection.arrival_slip.po_item_receipt.po_receipt.vehicle_entry
         entry.status = GateEntryStatus.ARRIVAL_SLIP_REJECTED
         entry.save(update_fields=["status"])
-
-        if hasattr(entry, "arrival_slip"):
-            entry.arrival_slip.reject_by_qa(remarks=remarks)
 
         return Response(
             RawMaterialInspectionSerializer(inspection).data,

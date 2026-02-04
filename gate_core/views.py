@@ -26,7 +26,7 @@ class RawMaterialGateEntryFullView(APIView):
                     "weighment"
                 )
                 .prefetch_related(
-                    "po_receipts__items__qc_inspection"
+                    "po_receipts__items__arrival_slip__inspection"
                 )
                 .get(id=gate_entry_id)
             )
@@ -103,7 +103,8 @@ class RawMaterialGateEntryFullView(APIView):
             }
 
             for item in po.items.all():
-                qc = getattr(item, "qc_inspection", None)
+                arrival_slip = getattr(item, "arrival_slip", None)
+                inspection = getattr(arrival_slip, "inspection", None) if arrival_slip else None
 
                 item_data = {
                     "item_code": item.po_item_code,
@@ -112,13 +113,24 @@ class RawMaterialGateEntryFullView(APIView):
                     "received_qty": float(item.received_qty),
                     "short_qty": float(item.short_qty),
                     "uom": item.uom,
-                    "qc": None
+                    "arrival_slip": None,
+                    "inspection": None
                 }
 
-                if qc:
-                    item_data["qc"] = {
-                        "status": qc.qc_status,
-                        "remarks": qc.remarks,
+                if arrival_slip:
+                    item_data["arrival_slip"] = {
+                        "id": arrival_slip.id,
+                        "status": arrival_slip.status,
+                        "is_submitted": arrival_slip.is_submitted,
+                    }
+
+                if inspection:
+                    item_data["inspection"] = {
+                        "id": inspection.id,
+                        "report_no": inspection.report_no,
+                        "workflow_status": inspection.workflow_status,
+                        "final_status": inspection.final_status,
+                        "remarks": inspection.remarks,
                     }
 
                 po_data["items"].append(item_data)

@@ -1,32 +1,11 @@
+# quality_control/serializers.py
+
 from rest_framework import serializers
-from quality_control.models.qc_inspection import QCInspection
 from quality_control.models.material_type import MaterialType
 from quality_control.models.qc_parameter_master import QCParameterMaster
 from quality_control.models.material_arrival_slip import MaterialArrivalSlip
 from quality_control.models.raw_material_inspection import RawMaterialInspection
 from quality_control.models.inspection_parameter_result import InspectionParameterResult
-
-
-class QCInspectionSerializer(serializers.ModelSerializer):
-    """Legacy serializer for backward compatibility"""
-    class Meta:
-        model = QCInspection
-        fields = [
-            "id",
-            "qc_status",
-            "sample_collected",
-            "batch_no",
-            "expiry_date",
-            "inspected_by",
-            "inspection_time",
-            "remarks",
-            "is_locked",
-        ]
-        read_only_fields = (
-            "id",
-            "inspection_time",
-            "is_locked",
-        )
 
 
 # ==================== Material Type Serializers ====================
@@ -77,12 +56,29 @@ class MaterialArrivalSlipSerializer(serializers.ModelSerializer):
     submitted_by_name = serializers.CharField(
         source="submitted_by.full_name", read_only=True
     )
+    po_item_code = serializers.CharField(
+        source="po_item_receipt.po_item_code", read_only=True
+    )
+    item_name = serializers.CharField(
+        source="po_item_receipt.item_name", read_only=True
+    )
+    po_receipt_id = serializers.IntegerField(
+        source="po_item_receipt.po_receipt.id", read_only=True
+    )
+    vehicle_entry_id = serializers.IntegerField(
+        source="po_item_receipt.po_receipt.vehicle_entry.id", read_only=True
+    )
+    entry_no = serializers.CharField(
+        source="po_item_receipt.po_receipt.vehicle_entry.entry_no", read_only=True
+    )
 
     class Meta:
         model = MaterialArrivalSlip
         fields = [
-            "id", "vehicle_entry", "particulars", "arrival_datetime",
-            "weighing_required", "party_name", "billing_qty", "billing_uom",
+            "id", "po_item_receipt", "po_item_code", "item_name",
+            "po_receipt_id", "vehicle_entry_id", "entry_no",
+            "particulars", "arrival_datetime", "weighing_required",
+            "party_name", "billing_qty", "billing_uom",
             "in_time_to_qa", "truck_no_as_per_bill", "commercial_invoice_no",
             "eway_bill_no", "bilty_no", "has_certificate_of_analysis",
             "has_certificate_of_quantity", "status", "is_submitted",
@@ -90,9 +86,10 @@ class MaterialArrivalSlipSerializer(serializers.ModelSerializer):
             "created_at", "updated_at"
         ]
         read_only_fields = [
-            "id", "status", "is_submitted", "submitted_at",
-            "submitted_by", "submitted_by_name", "in_time_to_qa",
-            "created_at", "updated_at"
+            "id", "po_item_code", "item_name", "po_receipt_id",
+            "vehicle_entry_id", "entry_no", "status", "is_submitted",
+            "submitted_at", "submitted_by", "submitted_by_name",
+            "in_time_to_qa", "created_at", "updated_at"
         ]
 
 
@@ -116,13 +113,35 @@ class MaterialArrivalSlipCreateSerializer(serializers.Serializer):
 # ==================== Inspection Parameter Result Serializers ====================
 
 class InspectionParameterResultSerializer(serializers.ModelSerializer):
+    parameter_code = serializers.CharField(
+        source="parameter_master.parameter_code", read_only=True
+    )
+    parameter_type = serializers.CharField(
+        source="parameter_master.parameter_type", read_only=True
+    )
+    min_value = serializers.DecimalField(
+        source="parameter_master.min_value", read_only=True,
+        max_digits=12, decimal_places=4
+    )
+    max_value = serializers.DecimalField(
+        source="parameter_master.max_value", read_only=True,
+        max_digits=12, decimal_places=4
+    )
+    uom = serializers.CharField(
+        source="parameter_master.uom", read_only=True
+    )
+
     class Meta:
         model = InspectionParameterResult
         fields = [
-            "id", "parameter_master", "parameter_name", "standard_value",
-            "result_value", "result_numeric", "is_within_spec", "remarks"
+            "id", "parameter_master", "parameter_code", "parameter_name",
+            "standard_value", "parameter_type", "min_value", "max_value",
+            "uom", "result_value", "result_numeric", "is_within_spec", "remarks"
         ]
-        read_only_fields = ["id", "parameter_name", "standard_value"]
+        read_only_fields = [
+            "id", "parameter_code", "parameter_name", "standard_value",
+            "parameter_type", "min_value", "max_value", "uom"
+        ]
 
 
 class InspectionParameterResultCreateSerializer(serializers.Serializer):
@@ -144,11 +163,33 @@ class RawMaterialInspectionSerializer(serializers.ModelSerializer):
     qam_name = serializers.CharField(source="qam.full_name", read_only=True)
     material_type_name = serializers.CharField(source="material_type.name", read_only=True)
 
+    # Arrival slip info
+    arrival_slip_id = serializers.IntegerField(source="arrival_slip.id", read_only=True)
+    arrival_slip_status = serializers.CharField(source="arrival_slip.status", read_only=True)
+
+    # PO item info via arrival slip
+    po_item_receipt_id = serializers.IntegerField(
+        source="arrival_slip.po_item_receipt.id", read_only=True
+    )
+    po_item_code = serializers.CharField(
+        source="arrival_slip.po_item_receipt.po_item_code", read_only=True
+    )
+    item_name = serializers.CharField(
+        source="arrival_slip.po_item_receipt.item_name", read_only=True
+    )
+
+    # Vehicle entry info via chain
+    vehicle_entry_id = serializers.SerializerMethodField()
+    entry_no = serializers.SerializerMethodField()
+
     class Meta:
         model = RawMaterialInspection
         fields = [
-            "id", "po_item_receipt", "report_no", "internal_lot_no",
-            "inspection_date", "description_of_material", "sap_code",
+            "id", "arrival_slip", "arrival_slip_id", "arrival_slip_status",
+            "po_item_receipt_id", "po_item_code", "item_name",
+            "vehicle_entry_id", "entry_no",
+            "report_no", "internal_lot_no", "inspection_date",
+            "description_of_material", "sap_code",
             "supplier_name", "manufacturer_name", "supplier_batch_lot_no",
             "unit_packing", "purchase_order_no", "invoice_bill_no",
             "vehicle_no", "material_type", "material_type_name",
@@ -159,11 +200,26 @@ class RawMaterialInspectionSerializer(serializers.ModelSerializer):
             "parameter_results", "created_at", "updated_at"
         ]
         read_only_fields = [
-            "id", "report_no", "internal_lot_no",
+            "id", "arrival_slip_id", "arrival_slip_status",
+            "po_item_receipt_id", "po_item_code", "item_name",
+            "vehicle_entry_id", "entry_no",
+            "report_no", "internal_lot_no",
             "qa_chemist", "qa_chemist_name", "qa_chemist_approved_at",
             "qam", "qam_name", "qam_approved_at",
             "workflow_status", "is_locked", "created_at", "updated_at"
         ]
+
+    def get_vehicle_entry_id(self, obj):
+        try:
+            return obj.arrival_slip.po_item_receipt.po_receipt.vehicle_entry.id
+        except AttributeError:
+            return None
+
+    def get_entry_no(self, obj):
+        try:
+            return obj.arrival_slip.po_item_receipt.po_receipt.vehicle_entry.entry_no
+        except AttributeError:
+            return None
 
 
 class RawMaterialInspectionCreateSerializer(serializers.Serializer):

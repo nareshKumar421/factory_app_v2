@@ -4,7 +4,6 @@ from django.db import models
 from django.conf import settings
 from django.utils import timezone
 from gate_core.models import BaseModel
-from raw_material_gatein.models import POItemReceipt
 from ..enums import InspectionStatus, InspectionWorkflowStatus
 
 User = settings.AUTH_USER_MODEL
@@ -13,12 +12,14 @@ User = settings.AUTH_USER_MODEL
 class RawMaterialInspection(BaseModel):
     """
     Raw Material Inspection Report - filled by QA/Lab personnel.
-    This replaces the old QCInspection model with support for dynamic parameters.
+    Linked to MaterialArrivalSlip (each arrival slip gets its own inspection).
     """
-    po_item_receipt = models.OneToOneField(
-        POItemReceipt,
+    arrival_slip = models.OneToOneField(
+        "quality_control.MaterialArrivalSlip",
         on_delete=models.CASCADE,
-        related_name="inspection"
+        related_name="inspection",
+        null=True,  # Temporarily nullable for migration
+        blank=True
     )
 
     # Auto-generated identifiers
@@ -28,7 +29,7 @@ class RawMaterialInspection(BaseModel):
     # Inspection Date
     inspection_date = models.DateField()
 
-    # Material Information
+    # Material Information (can be pre-filled from arrival slip/PO item)
     description_of_material = models.TextField()
     sap_code = models.CharField(max_length=50, blank=True)
 
@@ -113,6 +114,16 @@ class RawMaterialInspection(BaseModel):
     def __str__(self):
         return f"Inspection {self.report_no} - {self.description_of_material[:50]}"
 
+    @property
+    def po_item_receipt(self):
+        """Convenience property to access POItemReceipt via arrival slip."""
+        return self.arrival_slip.po_item_receipt
+
+    @property
+    def vehicle_entry(self):
+        """Convenience property to access VehicleEntry via chain."""
+        return self.arrival_slip.po_item_receipt.po_receipt.vehicle_entry
+
     @staticmethod
     def generate_report_no():
         """Generate unique report number."""
@@ -193,3 +204,5 @@ class RawMaterialInspection(BaseModel):
         self.save(update_fields=[
             "final_status", "workflow_status", "is_locked", "remarks", "updated_at"
         ])
+        # Also mark arrival slip as rejected
+        self.arrival_slip.reject_by_qa(remarks=remarks)

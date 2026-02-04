@@ -1,4 +1,3 @@
-from .qc_inspection import QCInspection
 from .material_type import MaterialType
 from .qc_parameter_master import QCParameterMaster
 from .material_arrival_slip import MaterialArrivalSlip

@@ -4,6 +4,18 @@
 
 This module handles the quality control workflow for raw material inspection at Jivo Wellness factory gates.
 
+## Data Flow
+
+```
+POItemReceipt
+      ↓ (OneToOne)
+MaterialArrivalSlip (Security Guard fills)
+      ↓ (OneToOne)
+RawMaterialInspection (QA fills)
+      ↓ (ForeignKey)
+InspectionParameterResult (Dynamic parameters)
+```
+
 ## Authentication
 
 All endpoints require JWT authentication. Include the token in the Authorization header:
@@ -40,23 +52,6 @@ The API uses Django's permission-based access control. Assign these permissions 
 | Can manage material types | `can_manage_material_types` | Manage material type master data |
 | Can manage QC parameters | `can_manage_qc_parameters` | Manage QC parameter definitions |
 
-### Assigning Permissions
-
-```python
-from django.contrib.auth.models import Permission
-from django.contrib.contenttypes.models import ContentType
-from quality_control.models import MaterialArrivalSlip
-
-# Get the permission
-perm = Permission.objects.get(codename='can_create_arrival_slip')
-
-# Assign to user
-user.user_permissions.add(perm)
-
-# Or assign to group
-group.permissions.add(perm)
-```
-
 ---
 
 ## API Endpoints
@@ -80,28 +75,12 @@ POST /api/v1/quality-control/material-types/
 }
 ```
 
-**Response:**
-```json
-{
-    "id": 1,
-    "code": "CAP_BLUE",
-    "name": "Cap Blue Plain",
-    "description": "Blue plain caps for water bottles",
-    "company": 1,
-    "is_active": true,
-    "created_at": "2026-02-04T10:00:00Z",
-    "updated_at": "2026-02-04T10:00:00Z"
-}
-```
-
 #### Get/Update/Delete Material Type
 ```
 GET    /api/v1/quality-control/material-types/{material_type_id}/
 PUT    /api/v1/quality-control/material-types/{material_type_id}/
 DELETE /api/v1/quality-control/material-types/{material_type_id}/
 ```
-
-**Permission:** `can_manage_material_types`
 
 ---
 
@@ -136,26 +115,6 @@ POST /api/v1/quality-control/material-types/{material_type_id}/parameters/
 - `BOOLEAN` - Pass/Fail
 - `RANGE` - Numeric range with min/max validation
 
-**Response:**
-```json
-{
-    "id": 1,
-    "material_type": 1,
-    "parameter_name": "Weight",
-    "parameter_code": "WEIGHT",
-    "standard_value": "1.35±0.10",
-    "parameter_type": "RANGE",
-    "min_value": "1.2500",
-    "max_value": "1.4500",
-    "uom": "grams",
-    "sequence": 1,
-    "is_mandatory": true,
-    "is_active": true,
-    "created_at": "2026-02-04T10:00:00Z",
-    "updated_at": "2026-02-04T10:00:00Z"
-}
-```
-
 #### Get/Update/Delete QC Parameter
 ```
 GET    /api/v1/quality-control/parameters/{parameter_id}/
@@ -163,16 +122,24 @@ PUT    /api/v1/quality-control/parameters/{parameter_id}/
 DELETE /api/v1/quality-control/parameters/{parameter_id}/
 ```
 
-**Permission:** `can_manage_qc_parameters`
-
 ---
 
 ### Material Arrival Slip APIs
 
-#### Create/Update/Get Arrival Slip
+#### List All Arrival Slips
 ```
-GET  /api/v1/quality-control/gate-entries/{gate_entry_id}/arrival-slip/
-POST /api/v1/quality-control/gate-entries/{gate_entry_id}/arrival-slip/
+GET /api/v1/quality-control/arrival-slips/
+```
+
+**Permission:** `can_view_arrival_slip`
+
+**Query Parameters:**
+- `status` - Filter by status (DRAFT, SUBMITTED, REJECTED)
+
+#### Create/Update/Get Arrival Slip for PO Item
+```
+GET  /api/v1/quality-control/po-items/{po_item_id}/arrival-slip/
+POST /api/v1/quality-control/po-items/{po_item_id}/arrival-slip/
 ```
 
 **Permission:** `can_create_arrival_slip` or `can_edit_arrival_slip` (POST), `can_view_arrival_slip` (GET)
@@ -200,7 +167,12 @@ POST /api/v1/quality-control/gate-entries/{gate_entry_id}/arrival-slip/
 ```json
 {
     "id": 1,
-    "vehicle_entry": 1,
+    "po_item_receipt": 1,
+    "po_item_code": "ITEM-001",
+    "item_name": "Cap Blue Plain",
+    "po_receipt_id": 1,
+    "vehicle_entry_id": 1,
+    "entry_no": "GE-20260204-0001",
     "particulars": "Cap Blue Plain (Water)",
     "arrival_datetime": "2026-02-03T10:30:00Z",
     "weighing_required": false,
@@ -225,6 +197,13 @@ POST /api/v1/quality-control/gate-entries/{gate_entry_id}/arrival-slip/
 }
 ```
 
+#### Get Arrival Slip by ID
+```
+GET /api/v1/quality-control/arrival-slips/{slip_id}/
+```
+
+**Permission:** `can_view_arrival_slip`
+
 #### Submit Arrival Slip to QA
 ```
 POST /api/v1/quality-control/arrival-slips/{slip_id}/submit/
@@ -238,7 +217,7 @@ POST /api/v1/quality-control/arrival-slips/{slip_id}/submit/
 
 ### Raw Material Inspection APIs
 
-#### List Pending Inspections
+#### List Pending Arrival Slips for QA Inspection
 ```
 GET /api/v1/quality-control/inspections/pending/
 ```
@@ -249,18 +228,17 @@ GET /api/v1/quality-control/inspections/pending/
 ```json
 [
     {
-        "gate_entry_id": 1,
-        "entry_no": "GE-20260204-0001",
-        "status": "ARRIVAL_SLIP_SUBMITTED",
-        "arrival_slip": { ... }
+        "arrival_slip": { ... },
+        "has_inspection": false,
+        "inspection_status": null
     }
 ]
 ```
 
-#### Create/Update/Get Inspection
+#### Create/Update/Get Inspection for Arrival Slip
 ```
-GET  /api/v1/quality-control/po-items/{po_item_id}/inspection/
-POST /api/v1/quality-control/po-items/{po_item_id}/inspection/
+GET  /api/v1/quality-control/arrival-slips/{slip_id}/inspection/
+POST /api/v1/quality-control/arrival-slips/{slip_id}/inspection/
 ```
 
 **Permission:** `can_create_inspection` or `can_edit_inspection` (POST), `can_view_inspection` (GET)
@@ -287,7 +265,14 @@ POST /api/v1/quality-control/po-items/{po_item_id}/inspection/
 ```json
 {
     "id": 1,
-    "po_item_receipt": 1,
+    "arrival_slip": 1,
+    "arrival_slip_id": 1,
+    "arrival_slip_status": "SUBMITTED",
+    "po_item_receipt_id": 1,
+    "po_item_code": "ITEM-001",
+    "item_name": "Cap Blue Plain",
+    "vehicle_entry_id": 1,
+    "entry_no": "GE-20260204-0001",
     "report_no": "RPT-20260203-0001",
     "internal_lot_no": "LOT-20260203-0001",
     "inspection_date": "2026-02-03",
@@ -318,8 +303,13 @@ POST /api/v1/quality-control/po-items/{po_item_id}/inspection/
         {
             "id": 1,
             "parameter_master": 1,
+            "parameter_code": "WEIGHT",
             "parameter_name": "Weight",
             "standard_value": "1.35±0.10",
+            "parameter_type": "RANGE",
+            "min_value": "1.2500",
+            "max_value": "1.4500",
+            "uom": "grams",
             "result_value": "",
             "result_numeric": null,
             "is_within_spec": null,
@@ -330,6 +320,13 @@ POST /api/v1/quality-control/po-items/{po_item_id}/inspection/
     "updated_at": "2026-02-04T10:00:00Z"
 }
 ```
+
+#### Get Inspection by ID
+```
+GET /api/v1/quality-control/inspections/{inspection_id}/
+```
+
+**Permission:** `can_view_inspection`
 
 #### Update Parameter Results
 ```
@@ -455,35 +452,20 @@ POST /api/v1/quality-control/inspections/{inspection_id}/reject/
 | `REJECTED` | Material rejected |
 | `HOLD` | Material on hold |
 
-### Gate Entry Status
-| Status | Description |
-|--------|-------------|
-| `DRAFT` | Initial state |
-| `SECURITY_CHECK_DONE` | Security check completed |
-| `ARRIVAL_SLIP_SUBMITTED` | Arrival slip submitted to QA |
-| `ARRIVAL_SLIP_REJECTED` | Arrival slip rejected by QA |
-| `IN_PROGRESS` | PO items being received |
-| `QC_PENDING` | QC inspection in progress |
-| `QC_IN_REVIEW` | Awaiting QA Chemist approval |
-| `QC_AWAITING_QAM` | Awaiting QA Manager approval |
-| `QC_COMPLETED` | All QC approvals done |
-| `COMPLETED` | Gate entry completed |
-| `CANCELLED` | Gate entry cancelled |
-
 ---
 
 ## Complete Workflow
 
 ```
-1. Security Guard creates Arrival Slip
-   POST /gate-entries/{id}/arrival-slip/
+1. Security Guard creates Arrival Slip for each PO item
+   POST /po-items/{id}/arrival-slip/
 
 2. Security Guard submits to QA
    POST /arrival-slips/{id}/submit/
    → Gate Entry status: ARRIVAL_SLIP_SUBMITTED
 
-3. QA creates Inspection with parameters
-   POST /po-items/{id}/inspection/
+3. QA creates Inspection linked to Arrival Slip
+   POST /arrival-slips/{id}/inspection/
    → Gate Entry status: QC_PENDING
 
 4. QA fills parameter results
@@ -513,7 +495,7 @@ POST /inspections/{id}/reject/
 → Gate Entry status: ARRIVAL_SLIP_REJECTED
 
 Security Guard updates arrival slip and resubmits
-POST /gate-entries/{id}/arrival-slip/
+POST /po-items/{id}/arrival-slip/
 POST /arrival-slips/{id}/submit/
 → Workflow restarts
 ```
