@@ -39,8 +39,13 @@ Extends `BaseModel` with:
 | Code | Display |
 |------|---------|
 | `DRAFT` | Draft |
+| `SECURITY_CHECK_DONE` | Security Check Done |
+| `ARRIVAL_SLIP_SUBMITTED` | Arrival Slip Submitted |
+| `ARRIVAL_SLIP_REJECTED` | Arrival Slip Rejected |
 | `IN_PROGRESS` | In Progress |
 | `QC_PENDING` | QC Pending |
+| `QC_IN_REVIEW` | QC In Review |
+| `QC_AWAITING_QAM` | Awaiting QAM Approval |
 | `QC_COMPLETED` | QC Completed |
 | `COMPLETED` | Completed |
 | `CANCELLED` | Cancelled |
@@ -118,8 +123,16 @@ GET /api/v1/gate-core/raw-material-gate-entry/{gate_entry_id}/
                     "received_qty": 950.0,
                     "short_qty": 50.0,
                     "uom": "KG",
-                    "qc": {
-                        "status": "PASSED",
+                    "arrival_slip": {
+                        "id": 1,
+                        "status": "SUBMITTED",
+                        "is_submitted": true
+                    },
+                    "inspection": {
+                        "id": 1,
+                        "report_no": "RMI-2026-001",
+                        "workflow_status": "COMPLETED",
+                        "final_status": "ACCEPTED",
                         "remarks": "Quality approved"
                     }
                 }
@@ -302,6 +315,29 @@ GET /api/v1/gate-core/construction-gate-entry/{gate_entry_id}/
 
 ---
 
+## Gate Completion Rules
+
+A gate entry can be marked as **COMPLETED** when:
+
+1. **Security check** is submitted
+2. **Weighment** is completed
+3. At least one **PO item** exists
+4. All PO items have completed **QC inspection** (either ACCEPTED or REJECTED)
+
+### QC Completion Flow
+
+```
+POItemReceipt
+      | (OneToOne)
+MaterialArrivalSlip (Security fills)
+      | (OneToOne)
+RawMaterialInspection (QA fills)
+      |
+Final Status: ACCEPTED or REJECTED → Gate can complete
+```
+
+---
+
 ## Module Structure
 
 ```
@@ -313,6 +349,10 @@ gate_core/
 │   ├── base.py             # BaseModel (abstract)
 │   └── gate_entry.py       # GateEntryBase (abstract)
 ├── enums.py                # GateEntryStatus
+├── services/
+│   ├── __init__.py
+│   ├── status_guard.py     # Status transition validation
+│   └── lock_manager.py     # Lock management
 ├── views.py                # Full view APIs
 ├── urls.py                 # URL routing
 ├── admin.py                # Admin configuration
@@ -330,7 +370,9 @@ All models use `BaseModel` for audit fields:
 - `security_checks.SecurityCheck`
 - `raw_material_gatein.POReceipt`, `POItemReceipt`
 - `weighment.Weighment`
-- `quality_control.QCInspection`
+- `quality_control.MaterialArrivalSlip`
+- `quality_control.RawMaterialInspection`
+- `quality_control.InspectionParameterResult`
 - `daily_needs_gatein.DailyNeedGateEntry`
 - `maintenance_gatein.MaintenanceGateEntry`
 - `construction_gatein.ConstructionGateEntry`

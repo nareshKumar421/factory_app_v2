@@ -231,22 +231,34 @@ class POItemReceiptAdmin(admin.ModelAdmin):
 
     @admin.display(description="QC Status")
     def qc_status_badge(self, obj):
-        if hasattr(obj, 'qc_inspection'):
-            status = obj.qc_inspection.qc_status
-            colors = {
-                "PENDING": "#f39c12",
-                "PASSED": "#27ae60",
-                "FAILED": "#e74c3c",
-            }
-            color = colors.get(status, "#95a5a6")
+        # Check new flow: POItemReceipt → arrival_slip → inspection
+        arrival_slip = getattr(obj, 'arrival_slip', None)
+        if not arrival_slip:
             return format_html(
-                '<span style="background-color: {}; color: white; padding: 2px 6px; '
-                'border-radius: 4px; font-size: 11px;">{}</span>',
-                color, status
+                '<span style="color: #999; font-size: 11px;">{}</span>',
+                "No Slip"
             )
+
+        inspection = getattr(arrival_slip, 'inspection', None)
+        if not inspection:
+            return format_html(
+                '<span style="background-color: #3498db; color: white; padding: 2px 6px; '
+                'border-radius: 4px; font-size: 11px;">{}</span>',
+                "Slip Only"
+            )
+
+        status = inspection.final_status
+        colors = {
+            "PENDING": "#f39c12",
+            "ACCEPTED": "#27ae60",
+            "REJECTED": "#e74c3c",
+            "HOLD": "#9b59b6",
+        }
+        color = colors.get(status, "#95a5a6")
         return format_html(
-            '<span style="color: #999; font-size: 11px;">{}</span>',
-            "No QC"
+            '<span style="background-color: {}; color: white; padding: 2px 6px; '
+            'border-radius: 4px; font-size: 11px;">{}</span>',
+            color, status
         )
 
     @admin.display(description="Active", boolean=True, ordering="is_active")
@@ -276,8 +288,9 @@ class POItemReceiptAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related(
-            'po_receipt', 'created_by', 'updated_by'
-        ).prefetch_related('qc_inspection')
+            'po_receipt', 'created_by', 'updated_by',
+            'arrival_slip', 'arrival_slip__inspection'
+        )
 
     def save_model(self, request, obj, form, change):
         if not change:

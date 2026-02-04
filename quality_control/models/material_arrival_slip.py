@@ -4,7 +4,7 @@ from django.db import models
 from django.conf import settings
 from django.utils import timezone
 from gate_core.models import BaseModel
-from driver_management.models import VehicleEntry
+from raw_material_gatein.models import POItemReceipt
 from ..enums import ArrivalSlipStatus
 
 User = settings.AUTH_USER_MODEL
@@ -13,12 +13,14 @@ User = settings.AUTH_USER_MODEL
 class MaterialArrivalSlip(BaseModel):
     """
     Material Arrival Slip - filled by Security Guard.
-    One-to-one with VehicleEntry.
+    One-to-one with POItemReceipt (each PO item gets its own arrival slip).
     """
-    vehicle_entry = models.OneToOneField(
-        VehicleEntry,
+    po_item_receipt = models.OneToOneField(
+        POItemReceipt,
         on_delete=models.CASCADE,
-        related_name="arrival_slip"
+        related_name="arrival_slip",
+        null=True,  # Temporarily nullable for migration
+        blank=True
     )
 
     # Arrival Information
@@ -76,7 +78,7 @@ class MaterialArrivalSlip(BaseModel):
         ]
 
     def __str__(self):
-        return f"Arrival Slip - {self.vehicle_entry.entry_no}"
+        return f"Arrival Slip - {self.po_item_receipt.po_item_code}"
 
     def submit_to_qa(self, user):
         """Submit the arrival slip to QA for inspection."""

@@ -3,13 +3,6 @@
 from django.db import models
 
 
-class QCStatus(models.TextChoices):
-    """Legacy QC status - kept for backward compatibility"""
-    PENDING = "PENDING", "Pending"
-    PASSED = "PASSED", "Passed"
-    FAILED = "FAILED", "Failed"
-
-
 class ArrivalSlipStatus(models.TextChoices):
     """Status for Material Arrival Slip"""
     DRAFT = "DRAFT", "Draft"

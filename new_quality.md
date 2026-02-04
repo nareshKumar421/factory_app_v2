@@ -12,31 +12,41 @@ This document describes the redesigned quality control workflow that properly se
 |----------|--------|
 | Rejection flow | Send back to Security Guard to update arrival slip |
 | QAM approval | Each item approved individually (not entire gate entry) |
+| Arrival Slip | One per PO item (not per vehicle entry) |
+| Inspection | One per arrival slip (linked to arrival slip, not directly to PO item) |
 
 ---
 
-## Current vs New Workflow
+## Data Flow
 
-### Current Flow (Problems)
 ```
-VehicleEntry → SecurityCheck → POReceipt → QCInspection (simple fields) → Complete
-```
-- QC has only fixed fields: status, batch_no, expiry_date, remarks
-- No separation between Security Guard and QA roles
-- No dynamic parameters per material type
-
-### New Flow (Proposed)
-```
-1. Security Guard fills Material Arrival Slip
-2. Arrival Slip sent to QA/Lab
-3. QA/Lab fills Raw Material Inspection Report with dynamic parameters
-4. QA Chemist approves → QAM approves (each item individually)
-5. Security Guard completes gate entry
+POItemReceipt
+      ↓ (OneToOne)
+MaterialArrivalSlip (Security Guard fills)
+      ↓ (OneToOne)
+RawMaterialInspection (QA fills)
+      ↓ (ForeignKey)
+InspectionParameterResult (Dynamic parameters)
 ```
 
 ---
 
-## New Models Required
+## Workflow
+
+```
+1. Security Guard creates Arrival Slip for each PO item
+2. Security Guard submits Arrival Slip to QA
+3. QA creates Inspection linked to Arrival Slip
+4. QA fills dynamic parameters based on Material Type
+5. QA Technician submits for approval
+6. QA Chemist approves
+7. QA Manager approves (each item individually)
+8. Gate entry completed when all items approved
+```
+
+---
+
+## New Models
 
 ### 1. MaterialArrivalSlip (Security Guard fills)
 
@@ -44,7 +54,7 @@ VehicleEntry → SecurityCheck → POReceipt → QCInspection (simple fields) �
 
 | Field | Type | Description |
 |-------|------|-------------|
-| vehicle_entry | OneToOne | Link to VehicleEntry |
+| po_item_receipt | OneToOne | Link to POItemReceipt |
 | particulars | TextField | Item description |
 | arrival_datetime | DateTimeField | Arrival date/time |
 | weighing_required | BooleanField | Yes/No |
@@ -58,6 +68,7 @@ VehicleEntry → SecurityCheck → POReceipt → QCInspection (simple fields) �
 | bilty_no | CharField | Bilty number |
 | has_certificate_of_analysis | BooleanField | COA present |
 | has_certificate_of_quantity | BooleanField | COQ present |
+| status | CharField | DRAFT, SUBMITTED, REJECTED |
 | is_submitted | BooleanField | Submitted to QA |
 | submitted_at | DateTimeField | Submission timestamp |
 
@@ -89,13 +100,13 @@ VehicleEntry → SecurityCheck → POReceipt → QCInspection (simple fields) �
 | sequence | Integer | Display order |
 | is_mandatory | BooleanField | Required field |
 
-### 4. RawMaterialInspection (QA/Lab fills - replaces QCInspection)
+### 4. RawMaterialInspection (QA/Lab fills)
 
 **File:** `quality_control/models/raw_material_inspection.py`
 
 | Field | Type | Description |
 |-------|------|-------------|
-| po_item_receipt | OneToOne | Link to POItemReceipt |
+| arrival_slip | OneToOne | Link to MaterialArrivalSlip |
 | report_no | CharField | Auto-generated report number |
 | internal_lot_no | CharField | Auto-generated lot number |
 | inspection_date | DateField | Inspection date |
@@ -133,7 +144,7 @@ VehicleEntry → SecurityCheck → POReceipt → QCInspection (simple fields) �
 
 ---
 
-## New Enums
+## Enums
 
 **File:** `quality_control/enums.py`
 
@@ -159,63 +170,41 @@ class InspectionWorkflowStatus(models.TextChoices):
 
 ---
 
-## Updated Gate Entry Status Flow
-
-**File:** `gate_core/enums.py` (modify)
-
-```
-DRAFT
-  ↓
-SECURITY_CHECK_DONE (Security check complete)
-  ↓
-ARRIVAL_SLIP_SUBMITTED (NEW - Arrival slip sent to QA)
-  ↓                              ↑
-  ↓                    ARRIVAL_SLIP_REJECTED (QA rejected, back to Security)
-  ↓                              ↑
-IN_PROGRESS (PO items being received)
-  ↓
-QC_PENDING (QA inspection in progress)
-  ↓
-QC_IN_REVIEW (NEW - Awaiting QA Chemist)
-  ↓
-QC_AWAITING_QAM (NEW - Awaiting QA Manager, per item)
-  ↓
-QC_COMPLETED (All item approvals done)
-  ↓
-COMPLETED (Gate entry complete)
-```
-
----
-
 ## API Endpoints
 
 ### Arrival Slip APIs (Security Guard)
 ```
-POST /api/v1/quality-control/gate-entries/{id}/arrival-slip/
-GET  /api/v1/quality-control/gate-entries/{id}/arrival-slip/
-POST /api/v1/quality-control/arrival-slips/{id}/submit/
+GET  /api/v1/quality-control/arrival-slips/                    # List all arrival slips
+GET  /api/v1/quality-control/po-items/{id}/arrival-slip/       # Get arrival slip for PO item
+POST /api/v1/quality-control/po-items/{id}/arrival-slip/       # Create/update arrival slip
+GET  /api/v1/quality-control/arrival-slips/{id}/               # Get arrival slip by ID
+POST /api/v1/quality-control/arrival-slips/{id}/submit/        # Submit to QA
 ```
 
 ### Inspection APIs (QA/Lab)
 ```
-GET  /api/v1/quality-control/inspections/pending/
-GET  /api/v1/quality-control/po-items/{id}/inspection/
-POST /api/v1/quality-control/po-items/{id}/inspection/
-POST /api/v1/quality-control/inspections/{id}/parameters/
-POST /api/v1/quality-control/inspections/{id}/submit/
+GET  /api/v1/quality-control/inspections/pending/              # List pending arrival slips for QA
+GET  /api/v1/quality-control/arrival-slips/{id}/inspection/    # Get inspection for arrival slip
+POST /api/v1/quality-control/arrival-slips/{id}/inspection/    # Create/update inspection
+GET  /api/v1/quality-control/inspections/{id}/                 # Get inspection by ID
+GET  /api/v1/quality-control/inspections/{id}/parameters/      # Get parameter results
+POST /api/v1/quality-control/inspections/{id}/parameters/      # Update parameter results
+POST /api/v1/quality-control/inspections/{id}/submit/          # Submit for approval
 ```
 
-### Approval APIs (Each item approved individually)
+### Approval APIs
 ```
-POST /api/v1/quality-control/inspections/{id}/approve/chemist/
-POST /api/v1/quality-control/inspections/{id}/approve/qam/
-POST /api/v1/quality-control/inspections/{id}/reject/  → Sends back to Security Guard
+POST /api/v1/quality-control/inspections/{id}/approve/chemist/ # QA Chemist approval
+POST /api/v1/quality-control/inspections/{id}/approve/qam/     # QA Manager approval
+POST /api/v1/quality-control/inspections/{id}/reject/          # Reject (back to Security Guard)
 ```
 
 ### Master Data APIs (Admin)
 ```
-CRUD /api/v1/quality-control/material-types/
-CRUD /api/v1/quality-control/material-types/{id}/parameters/
+GET/POST /api/v1/quality-control/material-types/               # List/Create material types
+GET/PUT/DELETE /api/v1/quality-control/material-types/{id}/    # Material type detail
+GET/POST /api/v1/quality-control/material-types/{id}/parameters/ # QC parameters for material type
+GET/PUT/DELETE /api/v1/quality-control/parameters/{id}/        # Parameter detail
 ```
 
 ---
@@ -227,8 +216,9 @@ When QA rejects an inspection:
 QA Rejects Inspection
         ↓
 Inspection status → REJECTED
+Arrival Slip status → REJECTED
         ↓
-Gate Entry status → ARRIVAL_SLIP_REJECTED (NEW)
+Gate Entry status → ARRIVAL_SLIP_REJECTED
         ↓
 Security Guard notified
         ↓
@@ -239,8 +229,6 @@ Resubmit to QA
 QA creates new inspection
 ```
 
-**Note:** Security Guard must update the arrival slip before QA can proceed again. This ensures proper documentation of issues.
-
 ---
 
 ## Permission-Based Access Control
@@ -248,6 +236,7 @@ QA creates new inspection
 Uses Django's built-in permission system. Assign permissions to users via Django Admin.
 
 ### Available Permissions
+
 | Permission | Codename | Description |
 |------------|----------|-------------|
 | Can create arrival slip | `can_create_arrival_slip` | Create material arrival slips |
@@ -298,14 +287,6 @@ Uses Django's built-in permission system. Assign permissions to users via Django
 | `quality_control/models/__init__.py` | Export new models |
 | `gate_core/enums.py` | Added new status states |
 | `gate_core/models/gate_entry.py` | Increased status max_length |
-
----
-
-## Migration Strategy
-
-1. **Phase 1:** Create new models alongside existing QCInspection
-2. **Phase 2:** Data migration from old QCInspection to RawMaterialInspection
-3. **Phase 3:** Deprecate and eventually remove old QCInspection
 
 ---
 
