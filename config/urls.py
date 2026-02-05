@@ -18,12 +18,13 @@ from django.conf import settings
 from django.contrib import admin
 from django.urls import path,include
 from django.conf.urls.static import static
+from django.utils.html import mark_safe
 from .view import RootApiView
 
-# Configure admin site branding
-admin.site.site_header = "Factory Jivo Wellness"
-admin.site.site_title = "Factory Jivo Wellness Admin"
-admin.site.index_title = "Gate Management & Quality Control System"
+# Configure admin site branding from settings
+admin.site.site_header = mark_safe(settings.ADMIN_SITE_HEADER)
+admin.site.site_title = settings.ADMIN_SITE_TITLE
+admin.site.index_title = settings.ADMIN_INDEX_TITLE
 
 urlpatterns = [
     path('admin/', admin.site.urls),
