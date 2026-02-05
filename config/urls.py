@@ -18,6 +18,7 @@ from django.conf import settings
 from django.contrib import admin
 from django.urls import path,include
 from django.conf.urls.static import static
+from .view import RootApiView
 
 # Configure admin site branding
 admin.site.site_header = "Factory Jivo Wellness"
@@ -26,6 +27,7 @@ admin.site.index_title = "Gate Management & Quality Control System"
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('',RootApiView.as_view(),name='root-api'),
     path('api/v1/accounts/', include('accounts.urls')),
     path("api/v1/company/", include("company.urls")),
     path("api/v1/driver-management/", include("driver_management.urls")),
