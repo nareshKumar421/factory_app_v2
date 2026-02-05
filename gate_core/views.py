@@ -12,8 +12,43 @@ from rest_framework.exceptions import NotFound, ValidationError
 class RawMaterialGateEntryFullView(APIView):
     """
     Get complete raw material gate entry data (read-only)
+    Includes QC status summary for each item and overall gate entry
     """
     permission_classes = [IsAuthenticated, HasCompanyContext]
+
+    def _get_qc_status(self, arrival_slip, inspection):
+        """
+        Determine QC status for an item based on arrival slip and inspection.
+        Returns tuple: (status_code, status_display)
+        """
+        if not arrival_slip:
+            return "NO_SLIP", "No Arrival Slip"
+
+        if not inspection:
+            if arrival_slip.is_submitted:
+                return "AWAITING_INSPECTION", "Awaiting Inspection"
+            return "SLIP_DRAFT", "Slip in Draft"
+
+        # Has inspection - check workflow and final status
+        if inspection.workflow_status == "DRAFT":
+            return "INSPECTION_DRAFT", "Inspection in Draft"
+        elif inspection.workflow_status == "SUBMITTED":
+            return "AWAITING_CHEMIST", "Awaiting Chemist Approval"
+        elif inspection.workflow_status == "QA_CHEMIST_APPROVED":
+            return "AWAITING_QAM", "Awaiting QAM Approval"
+        elif inspection.workflow_status in ["QAM_APPROVED", "COMPLETED"]:
+            # Check final status
+            if inspection.final_status == "ACCEPTED":
+                return "ACCEPTED", "QC Accepted"
+            elif inspection.final_status == "REJECTED":
+                return "REJECTED", "QC Rejected"
+            elif inspection.final_status == "HOLD":
+                return "HOLD", "On Hold"
+            else:
+                return "PENDING", "QC Pending"
+
+        return "PENDING", "QC Pending"
+
     def get(self, request, gate_entry_id):
 
         try:
@@ -23,32 +58,59 @@ class RawMaterialGateEntryFullView(APIView):
                     "vehicle",
                     "driver",
                     "security_check",
-                    "weighment"
+                    "weighment",
+                    "created_by"
                 )
                 .prefetch_related(
-                    "po_receipts__items__arrival_slip__inspection"
+                    "po_receipts__items__arrival_slip__inspection__material_type",
+                    "po_receipts__items__arrival_slip__inspection__qa_chemist",
+                    "po_receipts__items__arrival_slip__inspection__qam",
+                    "po_receipts__items__arrival_slip__submitted_by",
+                    "po_receipts__created_by"
                 )
                 .get(id=gate_entry_id)
             )
         except VehicleEntry.DoesNotExist:
             raise NotFound("Gate entry not found")
 
+        # QC Summary counters
+        qc_summary = {
+            "total_items": 0,
+            "no_slip": 0,
+            "slip_draft": 0,
+            "awaiting_inspection": 0,
+            "inspection_draft": 0,
+            "awaiting_chemist": 0,
+            "awaiting_qam": 0,
+            "accepted": 0,
+            "rejected": 0,
+            "hold": 0,
+            "pending": 0,
+            "can_complete": False,
+        }
+
         response = {
             "gate_entry": {
                 "id": entry.id,
                 "entry_no": entry.entry_no,
+                "entry_type": entry.entry_type,
                 "status": entry.status,
+                "status_display": entry.get_status_display() if hasattr(entry, 'get_status_display') else entry.status,
                 "is_locked": entry.is_locked,
                 "created_at": entry.created_at,
+                "updated_at": entry.updated_at,
+                "created_by": entry.created_by.email if entry.created_by else None,
             },
 
             "vehicle": {
+                "id": entry.vehicle.id,
                 "vehicle_number": entry.vehicle.vehicle_number,
                 "vehicle_type": entry.vehicle.vehicle_type,
-                "capacity_ton": entry.vehicle.capacity_ton,
+                "capacity_ton": float(entry.vehicle.capacity_ton) if entry.vehicle.capacity_ton else None,
             },
 
             "driver": {
+                "id": entry.driver.id,
                 "name": entry.driver.name,
                 "mobile_no": entry.driver.mobile_no,
                 "license_no": entry.driver.license_no,
@@ -56,6 +118,7 @@ class RawMaterialGateEntryFullView(APIView):
 
             "security_check": None,
             "weighment": None,
+            "qc_summary": qc_summary,
             "po_receipts": [],
         }
 
@@ -65,6 +128,7 @@ class RawMaterialGateEntryFullView(APIView):
         if hasattr(entry, "security_check") and entry.security_check:
             sc = entry.security_check
             response["security_check"] = {
+                "id": sc.id,
                 "vehicle_condition_ok": sc.vehicle_condition_ok,
                 "tyre_condition_ok": sc.tyre_condition_ok,
                 "fire_extinguisher_available": sc.fire_extinguisher_available,
@@ -73,6 +137,7 @@ class RawMaterialGateEntryFullView(APIView):
                 "is_submitted": sc.is_submitted,
                 "remarks": sc.remarks,
                 "inspected_by": sc.inspected_by_name,
+                "created_at": sc.created_at,
             }
 
         # -------------------------
@@ -81,38 +146,72 @@ class RawMaterialGateEntryFullView(APIView):
         if hasattr(entry, "weighment") and entry.weighment:
             w = entry.weighment
             response["weighment"] = {
-                "gross_weight": w.gross_weight,
-                "tare_weight": w.tare_weight,
-                "net_weight": w.net_weight,
+                "id": w.id,
+                "gross_weight": float(w.gross_weight) if w.gross_weight else None,
+                "tare_weight": float(w.tare_weight) if w.tare_weight else None,
+                "net_weight": float(w.net_weight) if w.net_weight else None,
                 "weighbridge_slip_no": w.weighbridge_slip_no,
+                "created_at": w.created_at,
             }
 
         # -------------------------
         # PO RECEIPTS + ITEMS + QC
         # -------------------------
+        all_items_completed = True
+
         for po in entry.po_receipts.all():
             po_data = {
+                "id": po.id,
                 "po_number": po.po_number,
+                "po_date": po.po_date if hasattr(po, 'po_date') else None,
                 "supplier_code": po.supplier_code,
                 "supplier_name": po.supplier_name,
-                "created_by": (
-                    po.created_by.email
-                    if po.created_by else None
-                ),
+                "created_by": po.created_by.email if po.created_by else None,
+                "created_at": po.created_at,
                 "items": []
             }
 
             for item in po.items.all():
+                qc_summary["total_items"] += 1
+
                 arrival_slip = getattr(item, "arrival_slip", None)
                 inspection = getattr(arrival_slip, "inspection", None) if arrival_slip else None
 
+                # Get QC status
+                qc_status_code, qc_status_display = self._get_qc_status(arrival_slip, inspection)
+
+                # Update QC summary counters
+                status_map = {
+                    "NO_SLIP": "no_slip",
+                    "SLIP_DRAFT": "slip_draft",
+                    "AWAITING_INSPECTION": "awaiting_inspection",
+                    "INSPECTION_DRAFT": "inspection_draft",
+                    "AWAITING_CHEMIST": "awaiting_chemist",
+                    "AWAITING_QAM": "awaiting_qam",
+                    "ACCEPTED": "accepted",
+                    "REJECTED": "rejected",
+                    "HOLD": "hold",
+                    "PENDING": "pending",
+                }
+                if qc_status_code in status_map:
+                    qc_summary[status_map[qc_status_code]] += 1
+
+                # Check if this item is completed (for gate completion check)
+                if qc_status_code not in ["ACCEPTED", "REJECTED"]:
+                    all_items_completed = False
+
                 item_data = {
+                    "id": item.id,
                     "item_code": item.po_item_code,
                     "item_name": item.item_name,
                     "ordered_qty": float(item.ordered_qty),
                     "received_qty": float(item.received_qty),
                     "short_qty": float(item.short_qty),
                     "uom": item.uom,
+                    "qc_status": {
+                        "code": qc_status_code,
+                        "display": qc_status_display,
+                    },
                     "arrival_slip": None,
                     "inspection": None
                 }
@@ -121,21 +220,68 @@ class RawMaterialGateEntryFullView(APIView):
                     item_data["arrival_slip"] = {
                         "id": arrival_slip.id,
                         "status": arrival_slip.status,
+                        "status_display": arrival_slip.get_status_display() if hasattr(arrival_slip, 'get_status_display') else arrival_slip.status,
                         "is_submitted": arrival_slip.is_submitted,
+                        "particulars": arrival_slip.particulars,
+                        "party_name": arrival_slip.party_name,
+                        "billing_qty": float(arrival_slip.billing_qty),
+                        "billing_uom": arrival_slip.billing_uom,
+                        "arrival_datetime": arrival_slip.arrival_datetime,
+                        "truck_no_as_per_bill": arrival_slip.truck_no_as_per_bill,
+                        "commercial_invoice_no": arrival_slip.commercial_invoice_no,
+                        "eway_bill_no": arrival_slip.eway_bill_no,
+                        "bilty_no": arrival_slip.bilty_no,
+                        "has_certificate_of_analysis": arrival_slip.has_certificate_of_analysis,
+                        "has_certificate_of_quantity": arrival_slip.has_certificate_of_quantity,
+                        "weighing_required": arrival_slip.weighing_required,
+                        "in_time_to_qa": arrival_slip.in_time_to_qa,
+                        "submitted_at": arrival_slip.submitted_at,
+                        "submitted_by": arrival_slip.submitted_by.email if arrival_slip.submitted_by else None,
+                        "remarks": arrival_slip.remarks,
+                        "created_at": arrival_slip.created_at,
                     }
 
                 if inspection:
                     item_data["inspection"] = {
                         "id": inspection.id,
                         "report_no": inspection.report_no,
+                        "internal_lot_no": inspection.internal_lot_no,
+                        "inspection_date": inspection.inspection_date,
+                        "description_of_material": inspection.description_of_material,
+                        "sap_code": inspection.sap_code,
+                        "material_type": inspection.material_type.name if inspection.material_type else None,
+                        "material_type_id": inspection.material_type.id if inspection.material_type else None,
+                        "supplier_name": inspection.supplier_name,
+                        "manufacturer_name": inspection.manufacturer_name,
+                        "supplier_batch_lot_no": inspection.supplier_batch_lot_no,
+                        "unit_packing": inspection.unit_packing,
+                        "purchase_order_no": inspection.purchase_order_no,
+                        "invoice_bill_no": inspection.invoice_bill_no,
+                        "vehicle_no": inspection.vehicle_no,
                         "workflow_status": inspection.workflow_status,
+                        "workflow_status_display": inspection.get_workflow_status_display() if hasattr(inspection, 'get_workflow_status_display') else inspection.workflow_status,
                         "final_status": inspection.final_status,
+                        "final_status_display": inspection.get_final_status_display() if hasattr(inspection, 'get_final_status_display') else inspection.final_status,
+                        "is_locked": inspection.is_locked,
+                        "qa_chemist": inspection.qa_chemist.email if inspection.qa_chemist else None,
+                        "qa_chemist_approved_at": inspection.qa_chemist_approved_at,
+                        "qa_chemist_remarks": inspection.qa_chemist_remarks,
+                        "qam": inspection.qam.email if inspection.qam else None,
+                        "qam_approved_at": inspection.qam_approved_at,
+                        "qam_remarks": inspection.qam_remarks,
                         "remarks": inspection.remarks,
+                        "created_at": inspection.created_at,
                     }
 
                 po_data["items"].append(item_data)
 
             response["po_receipts"].append(po_data)
+
+        # Set can_complete flag
+        qc_summary["can_complete"] = (
+            qc_summary["total_items"] > 0 and
+            all_items_completed
+        )
 
         return Response(response)
     
