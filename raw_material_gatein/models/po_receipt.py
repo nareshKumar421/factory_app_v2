@@ -22,15 +22,8 @@ class POReceipt(BaseModel):
     class Meta:
         unique_together = ("vehicle_entry", "po_number")
         permissions = [
-            ("can_create_raw_material_entry", "Can create raw material gate entry"),
-            ("can_view_raw_material_entry", "Can view raw material gate entry"),
-            ("can_edit_raw_material_entry", "Can edit raw material gate entry"),
-            ("can_delete_raw_material_entry", "Can delete raw material gate entry"),
             ("can_complete_raw_material_entry", "Can complete raw material gate entry"),
             ("can_receive_po", "Can receive PO items"),
-            ("can_view_po_receipt", "Can view PO receipts"),
-            ("can_edit_po_receipt", "Can edit PO receipts"),
-            ("can_delete_po_receipt", "Can delete PO receipts"),
         ]
 
     def __str__(self):

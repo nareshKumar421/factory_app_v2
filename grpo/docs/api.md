@@ -72,7 +72,7 @@ Post GRPO to SAP for a specific PO receipt.
 POST /api/grpo/post/
 ```
 
-**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `grpo.can_create_grpo_posting`
+**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `grpo.add_grpoposting`
 
 **Request Body:**
 ```json
@@ -140,7 +140,7 @@ View details of a specific GRPO posting.
 GET /api/grpo/{posting_id}/
 ```
 
-**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `grpo.can_view_grpo_posting`
+**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `grpo.view_grpoposting`
 
 **Error Response (404):**
 ```json
@@ -157,16 +157,16 @@ GET /api/grpo/{posting_id}/
 |----------|--------|---------------------|
 | `/pending/` | GET | `can_view_pending_grpo` |
 | `/preview/{id}/` | GET | `can_preview_grpo` |
-| `/post/` | POST | `can_create_grpo_posting` |
+| `/post/` | POST | `add_grpoposting` |
 | `/history/` | GET | `can_view_grpo_history` |
-| `/{posting_id}/` | GET | `can_view_grpo_posting` |
+| `/{posting_id}/` | GET | `view_grpoposting` |
 
 ## All Permissions
 
 | Permission Codename | Description |
 |---------------------|-------------|
-| `grpo.can_view_grpo_posting` | Can view GRPO posting |
-| `grpo.can_create_grpo_posting` | Can create GRPO posting |
+| `grpo.view_grpoposting` | Can view GRPO posting |
+| `grpo.add_grpoposting` | Can add GRPO posting |
 | `grpo.can_view_pending_grpo` | Can view pending GRPO entries |
 | `grpo.can_preview_grpo` | Can preview GRPO data |
 | `grpo.can_view_grpo_history` | Can view GRPO posting history |

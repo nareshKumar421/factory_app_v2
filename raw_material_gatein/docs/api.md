@@ -82,7 +82,7 @@ List all PO receipts for a specific gate entry.
 GET /api/v1/raw-material-gatein/gate-entries/{gate_entry_id}/po-receipts/view/
 ```
 
-**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `raw_material_gatein.can_view_po_receipt`
+**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `raw_material_gatein.view_poreceipt`
 
 **Response (200 OK):**
 ```json
@@ -151,22 +151,19 @@ POST /api/v1/raw-material-gatein/gate-entries/{gate_entry_id}/complete/
 | Endpoint | Method | Permission Codename |
 |----------|--------|---------------------|
 | `/gate-entries/{id}/po-receipts/` | POST | `can_receive_po` |
-| `/gate-entries/{id}/po-receipts/view/` | GET | `can_view_po_receipt` |
+| `/gate-entries/{id}/po-receipts/view/` | GET | `view_poreceipt` |
 | `/gate-entries/{id}/complete/` | POST | `can_complete_raw_material_entry` |
 
 ## All Permissions
 
 | Permission Codename | Description |
 |---------------------|-------------|
-| `raw_material_gatein.can_create_raw_material_entry` | Can create raw material gate entry |
-| `raw_material_gatein.can_view_raw_material_entry` | Can view raw material gate entry |
-| `raw_material_gatein.can_edit_raw_material_entry` | Can edit raw material gate entry |
-| `raw_material_gatein.can_delete_raw_material_entry` | Can delete raw material gate entry |
+| `raw_material_gatein.add_poreceipt` | Can add PO receipt |
+| `raw_material_gatein.view_poreceipt` | Can view PO receipt |
+| `raw_material_gatein.change_poreceipt` | Can change PO receipt |
+| `raw_material_gatein.delete_poreceipt` | Can delete PO receipt |
 | `raw_material_gatein.can_complete_raw_material_entry` | Can complete raw material gate entry |
 | `raw_material_gatein.can_receive_po` | Can receive PO items |
-| `raw_material_gatein.can_view_po_receipt` | Can view PO receipts |
-| `raw_material_gatein.can_edit_po_receipt` | Can edit PO receipts |
-| `raw_material_gatein.can_delete_po_receipt` | Can delete PO receipts |
 
 ---
 

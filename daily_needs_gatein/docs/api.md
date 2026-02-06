@@ -23,7 +23,7 @@ Retrieve existing daily need entry for a gate entry.
 GET /api/v1/daily-needs-gatein/gate-entries/{gate_entry_id}/daily-need/
 ```
 
-**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `daily_needs_gatein.can_view_daily_need_entry`
+**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `daily_needs_gatein.view_dailyneedgateentry`
 
 **Response (200 OK):**
 ```json
@@ -64,7 +64,7 @@ Create new daily need gate entry for a vehicle entry.
 POST /api/v1/daily-needs-gatein/gate-entries/{gate_entry_id}/daily-need/
 ```
 
-**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `daily_needs_gatein.can_create_daily_need_entry`
+**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `daily_needs_gatein.add_dailyneedgateentry`
 
 **Request Body:**
 ```json
@@ -138,7 +138,7 @@ List all categories for daily need / canteen items (for dropdown).
 GET /api/v1/daily-needs-gatein/gate-entries/daily-need/categories/
 ```
 
-**Permission Required:** `IsAuthenticated` + `daily_needs_gatein.can_view_category`
+**Permission Required:** `IsAuthenticated` + `daily_needs_gatein.view_categorylist`
 
 **Response (200 OK):**
 ```json
@@ -160,21 +160,21 @@ GET /api/v1/daily-needs-gatein/gate-entries/daily-need/categories/
 
 | Endpoint | Method | Permission Codename |
 |----------|--------|---------------------|
-| `/gate-entries/{id}/daily-need/` | GET | `can_view_daily_need_entry` |
-| `/gate-entries/{id}/daily-need/` | POST | `can_create_daily_need_entry` |
+| `/gate-entries/{id}/daily-need/` | GET | `view_dailyneedgateentry` |
+| `/gate-entries/{id}/daily-need/` | POST | `add_dailyneedgateentry` |
 | `/gate-entries/{id}/complete/` | POST | `can_complete_daily_need_entry` |
-| `/gate-entries/daily-need/categories/` | GET | `can_view_category` |
+| `/gate-entries/daily-need/categories/` | GET | `view_categorylist` |
 
 ## All Permissions
 
 | Permission Codename | Description |
 |---------------------|-------------|
-| `daily_needs_gatein.can_create_daily_need_entry` | Can create daily need gate entry |
-| `daily_needs_gatein.can_view_daily_need_entry` | Can view daily need gate entry |
-| `daily_needs_gatein.can_edit_daily_need_entry` | Can edit daily need gate entry |
-| `daily_needs_gatein.can_delete_daily_need_entry` | Can delete daily need gate entry |
+| `daily_needs_gatein.add_dailyneedgateentry` | Can add daily need gate entry |
+| `daily_needs_gatein.view_dailyneedgateentry` | Can view daily need gate entry |
+| `daily_needs_gatein.change_dailyneedgateentry` | Can change daily need gate entry |
+| `daily_needs_gatein.delete_dailyneedgateentry` | Can delete daily need gate entry |
 | `daily_needs_gatein.can_complete_daily_need_entry` | Can complete daily need gate entry |
-| `daily_needs_gatein.can_view_category` | Can view category |
+| `daily_needs_gatein.view_categorylist` | Can view category list |
 | `daily_needs_gatein.can_manage_category` | Can manage category |
 
 ---

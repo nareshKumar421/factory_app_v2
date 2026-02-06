@@ -102,10 +102,7 @@ class RawMaterialInspection(BaseModel):
             models.Index(fields=["inspection_date"]),
         ]
         permissions = [
-            ("can_create_inspection", "Can create raw material inspection"),
-            ("can_edit_inspection", "Can edit raw material inspection"),
             ("can_submit_inspection", "Can submit inspection for approval"),
-            ("can_view_inspection", "Can view raw material inspection"),
             ("can_approve_as_chemist", "Can approve inspection as QA Chemist"),
             ("can_approve_as_qam", "Can approve inspection as QA Manager"),
             ("can_reject_inspection", "Can reject inspection"),

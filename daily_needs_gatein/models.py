@@ -26,7 +26,6 @@ class CategoryList(models.Model):
         verbose_name_plural = "Category Lists"
         ordering = ["category_name"]
         permissions = [
-            ("can_view_category", "Can view category"),
             ("can_manage_category", "Can manage category"),
         ]
 
@@ -113,10 +112,6 @@ class DailyNeedGateEntry(models.Model):
             models.Index(fields=["created_at"]),
         ]
         permissions = [
-            ("can_create_daily_need_entry", "Can create daily need gate entry"),
-            ("can_view_daily_need_entry", "Can view daily need gate entry"),
-            ("can_edit_daily_need_entry", "Can edit daily need gate entry"),
-            ("can_delete_daily_need_entry", "Can delete daily need gate entry"),
             ("can_complete_daily_need_entry", "Can complete daily need gate entry"),
         ]
 

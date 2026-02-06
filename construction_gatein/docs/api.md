@@ -23,7 +23,7 @@ Retrieve existing construction entry for a gate entry.
 GET /api/v1/construction-gatein/gate-entries/{gate_entry_id}/construction/
 ```
 
-**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `construction_gatein.can_view_construction_entry`
+**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `construction_gatein.view_constructiongateentry`
 
 **Response (200 OK):**
 ```json
@@ -65,7 +65,7 @@ Create new construction gate entry for a vehicle entry.
 POST /api/v1/construction-gatein/gate-entries/{gate_entry_id}/construction/
 ```
 
-**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `construction_gatein.can_create_construction_entry`
+**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `construction_gatein.add_constructiongateentry`
 
 **Request Body:**
 ```json
@@ -112,7 +112,7 @@ Update existing construction gate entry.
 PUT /api/v1/construction-gatein/gate-entries/{gate_entry_id}/construction/update/
 ```
 
-**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `construction_gatein.can_edit_construction_entry`
+**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `construction_gatein.change_constructiongateentry`
 
 **Request Body:** (partial update supported)
 ```json
@@ -163,7 +163,7 @@ List all active construction material categories (for dropdown).
 GET /api/v1/construction-gatein/gate-entries/construction/categories/
 ```
 
-**Permission Required:** `IsAuthenticated` + `construction_gatein.can_view_material_category`
+**Permission Required:** `IsAuthenticated` + `construction_gatein.view_constructionmaterialcategory`
 
 **Response (200 OK):**
 ```json
@@ -189,22 +189,22 @@ GET /api/v1/construction-gatein/gate-entries/construction/categories/
 
 | Endpoint | Method | Permission Codename |
 |----------|--------|---------------------|
-| `/gate-entries/{id}/construction/` | GET | `can_view_construction_entry` |
-| `/gate-entries/{id}/construction/` | POST | `can_create_construction_entry` |
-| `/gate-entries/{id}/construction/update/` | PUT | `can_edit_construction_entry` |
+| `/gate-entries/{id}/construction/` | GET | `view_constructiongateentry` |
+| `/gate-entries/{id}/construction/` | POST | `add_constructiongateentry` |
+| `/gate-entries/{id}/construction/update/` | PUT | `change_constructiongateentry` |
 | `/gate-entries/{id}/complete/` | POST | `can_complete_construction_entry` |
-| `/gate-entries/construction/categories/` | GET | `can_view_material_category` |
+| `/gate-entries/construction/categories/` | GET | `view_constructionmaterialcategory` |
 
 ## All Permissions
 
 | Permission Codename | Description |
 |---------------------|-------------|
-| `construction_gatein.can_create_construction_entry` | Can create construction gate entry |
-| `construction_gatein.can_view_construction_entry` | Can view construction gate entry |
-| `construction_gatein.can_edit_construction_entry` | Can edit construction gate entry |
-| `construction_gatein.can_delete_construction_entry` | Can delete construction gate entry |
+| `construction_gatein.add_constructiongateentry` | Can add construction gate entry |
+| `construction_gatein.view_constructiongateentry` | Can view construction gate entry |
+| `construction_gatein.change_constructiongateentry` | Can change construction gate entry |
+| `construction_gatein.delete_constructiongateentry` | Can delete construction gate entry |
 | `construction_gatein.can_complete_construction_entry` | Can complete construction gate entry |
-| `construction_gatein.can_view_material_category` | Can view material category |
+| `construction_gatein.view_constructionmaterialcategory` | Can view construction material category |
 | `construction_gatein.can_manage_material_category` | Can manage material category |
 
 ---
