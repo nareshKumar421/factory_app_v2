@@ -33,6 +33,15 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     objects = UserManager()
 
+    class Meta:
+        permissions = [
+            ("can_create_user", "Can create user"),
+            ("can_view_user", "Can view user"),
+            ("can_edit_user", "Can edit user"),
+            ("can_delete_user", "Can delete user"),
+            ("can_manage_user_permissions", "Can manage user permissions"),
+        ]
+
     def __str__(self):
         return self.email
     
@@ -46,6 +55,12 @@ class Department(models.Model):
     """
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
+
+    class Meta:
+        permissions = [
+            ("can_view_department", "Can view department"),
+            ("can_manage_department", "Can manage department"),
+        ]
 
     def __str__(self):
         return self.name

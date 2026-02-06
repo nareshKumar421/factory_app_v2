@@ -36,17 +36,20 @@ class PendingGRPOListAPI(APIView):
             po_receipts = entry.po_receipts.all()
             posted_count = entry.grpo_postings.filter(status="POSTED").count()
             total_count = po_receipts.count()
+            pending_count = total_count - posted_count
 
-            result.append({
-                "vehicle_entry_id": entry.id,
-                "entry_no": entry.entry_no,
-                "status": entry.status,
-                "entry_time": entry.entry_time,
-                "total_po_count": total_count,
-                "posted_po_count": posted_count,
-                "pending_po_count": total_count - posted_count,
-                "is_fully_posted": posted_count == total_count
-            })
+            # Only include entries that have pending POs
+            if pending_count > 0:
+                result.append({
+                    "vehicle_entry_id": entry.id,
+                    "entry_no": entry.entry_no,
+                    "status": entry.status,
+                    "entry_time": entry.entry_time,
+                    "total_po_count": total_count,
+                    "posted_po_count": posted_count,
+                    "pending_po_count": pending_count,
+                    "is_fully_posted": False
+                })
 
         return Response(result)
 
@@ -78,12 +81,17 @@ class GRPOPreviewAPI(APIView):
 class PostGRPOAPI(APIView):
     """
     Post GRPO to SAP for a specific PO receipt.
-    Only posts accepted quantities from QC.
+    Updates accepted quantities in POItemReceipt before posting.
 
     POST /api/grpo/post/
     {
         "vehicle_entry_id": 123,
         "po_receipt_id": 456,
+        "items": [
+            {"po_item_receipt_id": 1, "accepted_qty": 100.5},
+            {"po_item_receipt_id": 2, "accepted_qty": 50.0}
+        ],
+        "branch_id": 1,  // required - SAP Branch ID (BPLId)
         "warehouse_code": "WH01",  // optional
         "comments": "Gate entry completed"  // optional
     }
@@ -105,6 +113,8 @@ class PostGRPOAPI(APIView):
                 vehicle_entry_id=serializer.validated_data["vehicle_entry_id"],
                 po_receipt_id=serializer.validated_data["po_receipt_id"],
                 user=request.user,
+                items=serializer.validated_data["items"],
+                branch_id=serializer.validated_data["branch_id"],
                 warehouse_code=serializer.validated_data.get("warehouse_code"),
                 comments=serializer.validated_data.get("comments")
             )

@@ -43,6 +43,8 @@ This document lists all error codes and messages that can be returned by the GRP
 |---------------|-------|----------|
 | "vehicle_entry_id is required" | Missing field | Add vehicle_entry_id to request |
 | "po_receipt_id is required" | Missing field | Add po_receipt_id to request |
+| "items is required" | Missing items array | Add items array with accepted quantities |
+| "branch_id is required" | Missing branch ID | Add branch_id (SAP BPLId) to request |
 
 **Example Response:**
 ```json
@@ -54,20 +56,53 @@ This document lists all error codes and messages that can be returned by the GRP
 }
 ```
 
+#### Items Validation Errors
+
+| Error Message | Cause | Solution |
+|---------------|-------|----------|
+| "At least one item with accepted quantity is required" | Empty items array | Add at least one item with accepted_qty |
+| "po_item_receipt_id is required" | Missing ID in item | Include po_item_receipt_id for each item |
+| "accepted_qty is required" | Missing quantity in item | Include accepted_qty for each item |
+| "Ensure this value is greater than or equal to 0" | Negative accepted_qty | Use 0 or positive value |
+
+**Example Response:**
+```json
+{
+  "detail": "Invalid request data",
+  "errors": {
+    "items": ["At least one item with accepted quantity is required"]
+  }
+}
+```
+
 #### Business Rule Violations
 
 | Error Message | Cause | Solution |
 |---------------|-------|----------|
 | "Vehicle entry {id} not found" | Invalid vehicle_entry_id | Verify the ID exists |
 | "PO receipt {id} not found for this vehicle entry" | Invalid po_receipt_id | Verify PO belongs to the entry |
+| "Invalid PO item receipt IDs: {ids}" | Item IDs don't belong to PO | Use po_item_receipt_id from preview API |
+| "Accepted qty ({qty}) cannot exceed received qty ({qty}) for item {name}" | accepted_qty > received_qty | Reduce accepted_qty |
 | "Gate entry is not completed. Current status: {status}" | Entry not ready | Complete gate entry first |
 | "GRPO already posted for PO {number}. SAP Doc Num: {num}" | Duplicate posting | No action needed - already done |
-| "No accepted quantities to post for this PO" | All items rejected | No GRPO needed |
+| "No accepted quantities to post for this PO" | All items have accepted_qty = 0 | Provide at least one item with qty > 0 |
 
-**Example Response:**
+**Example Responses:**
 ```json
 {
   "detail": "Gate entry is not completed. Current status: IN_PROGRESS"
+}
+```
+
+```json
+{
+  "detail": "Accepted qty (1200) cannot exceed received qty (1000) for item Raw Material A"
+}
+```
+
+```json
+{
+  "detail": "Invalid PO item receipt IDs: {101, 102}"
 }
 ```
 
@@ -80,6 +115,7 @@ This document lists all error codes and messages that can be returned by the GRP
 | Error Message | Cause | Solution |
 |---------------|-------|----------|
 | "SAP validation error: {details}" | SAP rejected the data | Check SAP validation rules |
+| "Specify an active branch [OPDN.BPLId]" | Missing or invalid branch ID | Provide valid branch_id in request |
 | "Item {code} is not active in SAP" | Item deactivated | Activate item in SAP |
 | "Supplier {code} is not authorized" | Supplier issue | Check supplier status in SAP |
 | "Quantity exceeds open PO quantity" | Over-receipt | Verify quantities |
@@ -161,16 +197,48 @@ This document lists all error codes and messages that can be returned by the GRP
 
 **Symptoms:**
 - GRPO posting fails
-- All items have 0 accepted_qty
+- All items in request have accepted_qty = 0
 
 **Diagnosis:**
-1. Preview GRPO data
-2. Check `accepted_qty` for each item
+1. Check the `items` array in your request
+2. Verify accepted_qty values are > 0 for at least one item
 
 **Resolution:**
-1. This is expected if QC rejected all items
-2. No GRPO is needed - goods are rejected
+1. Provide accepted_qty > 0 for items you want to post
+2. If all goods should be rejected, no GRPO is needed
 3. Handle rejected goods through returns process
+
+---
+
+### Problem: "Accepted qty cannot exceed received qty"
+
+**Symptoms:**
+- GRPO posting fails with 400 error
+- Error mentions specific item name
+
+**Diagnosis:**
+1. Preview GRPO data: `GET /api/v1/grpo/preview/{id}/`
+2. Compare your accepted_qty with received_qty for each item
+
+**Resolution:**
+1. Reduce accepted_qty to be <= received_qty
+2. Use preview API to get correct received_qty values
+
+---
+
+### Problem: "Invalid PO item receipt IDs"
+
+**Symptoms:**
+- GRPO posting fails with 400 error
+- Error lists invalid IDs
+
+**Diagnosis:**
+1. Verify po_item_receipt_id values in your request
+2. Check they belong to the correct po_receipt_id
+
+**Resolution:**
+1. Use the preview API to get correct po_item_receipt_id values
+2. Ensure items match the specified PO receipt
 
 ---
 

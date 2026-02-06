@@ -30,11 +30,16 @@ This document describes the complete workflow for GRPO posting.
 │   │          ↓                                                   │   │
 │   │   9. Preview GRPO Data (GET /api/v1/grpo/preview/{id}/)      │   │
 │   │          ↓                                                   │   │
-│   │   10. Post GRPO to SAP (POST /api/v1/grpo/post/)             │   │
+│   │   10. User enters accepted quantities for each item          │   │
 │   │          ↓                                                   │   │
-│   │   11. SAP Creates GRPO Document                              │   │
+│   │   11. Post GRPO to SAP (POST /api/v1/grpo/post/)             │   │
+│   │       - Validates accepted_qty <= received_qty               │   │
+│   │       - Saves accepted/rejected qty to POItemReceipt         │   │
+│   │       - Posts to SAP                                         │   │
 │   │          ↓                                                   │   │
-│   │   12. Record Posting in Database                             │   │
+│   │   12. SAP Creates GRPO Document                              │   │
+│   │          ↓                                                   │   │
+│   │   13. Record Posting in Database                             │   │
 │   │                                                              │   │
 │   └─────────────────────────────────────────────────────────────┘   │
 │                                                                      │
@@ -98,12 +103,13 @@ Authorization: Bearer <token>
 - [ ] Correct supplier code and name
 - [ ] Invoice number and date
 - [ ] Item codes and names
-- [ ] Accepted quantities (these will be posted)
+- [ ] Note `po_item_receipt_id` for each item (needed for POST)
+- [ ] Note `received_qty` for each item (max you can accept)
 - [ ] Entry is ready for GRPO (`is_ready_for_grpo: true`)
 
 ### Step 3: Post GRPO to SAP
 
-When ready, post the GRPO for each PO receipt.
+When ready, post the GRPO for each PO receipt. **You must specify the accepted quantity for each item.**
 
 ```http
 POST /api/v1/grpo/post/
@@ -113,10 +119,22 @@ Content-Type: application/json
 {
   "vehicle_entry_id": 123,
   "po_receipt_id": 456,
+  "items": [
+    {"po_item_receipt_id": 789, "accepted_qty": 950.000},
+    {"po_item_receipt_id": 790, "accepted_qty": 500.000}
+  ],
+  "branch_id": 1,
   "warehouse_code": "WH01",
   "comments": "Goods received per gate entry VE-2024-001"
 }
 ```
+
+**Important Notes:**
+- Get `po_item_receipt_id` values from the preview response
+- `accepted_qty` cannot exceed the `received_qty` from preview
+- `branch_id` is required - this is the SAP Branch/Business Place ID (BPLId)
+- System automatically calculates `rejected_qty = received_qty - accepted_qty`
+- Items with `accepted_qty = 0` are skipped (not posted to SAP)
 
 ### Step 4: Handle Response
 
@@ -139,6 +157,7 @@ The following data is sent to SAP Service Layer:
 ```json
 {
   "CardCode": "SUP001",
+  "BPL_IDAssignedToInvoice": 1,
   "Comments": "Gate entry completed",
   "DocumentLines": [
     {
@@ -152,9 +171,17 @@ The following data is sent to SAP Service Layer:
 
 ### Key Points:
 1. **CardCode**: Supplier code from PO receipt
-2. **Quantity**: Only `accepted_qty` from QC (not received_qty)
-3. **WarehouseCode**: Optional, from request or SAP default
-4. **Rejected quantities are NOT posted**
+2. **BPL_IDAssignedToInvoice**: SAP Branch/Business Place ID (required for multi-branch SAP setup)
+3. **Quantity**: The `accepted_qty` provided by the user in the POST request
+4. **WarehouseCode**: Optional, from request or SAP default
+5. **Rejected quantities are NOT posted** (items with accepted_qty = 0 are skipped)
+
+### Data Flow:
+1. User submits GRPO with `items` array containing accepted quantities
+2. System validates quantities (cannot exceed received_qty)
+3. System updates `POItemReceipt.accepted_qty` and calculates `rejected_qty`
+4. System posts to SAP with the accepted quantities
+5. On success, GRPO posting is recorded with line items
 
 ---
 
@@ -182,9 +209,12 @@ Gate Entry VE-2024-001
 
 | Error | Cause | Solution |
 |-------|-------|----------|
+| "At least one item required" | Items array is empty | Add items with accepted quantities |
+| "Invalid PO item receipt IDs" | Item IDs don't belong to the PO | Use IDs from preview response |
+| "Accepted qty exceeds received qty" | accepted_qty > received_qty | Reduce accepted_qty to received_qty or less |
 | "Gate entry is not completed" | Entry status is not COMPLETED/QC_COMPLETED | Complete the gate entry first |
 | "GRPO already posted" | GRPO was already posted for this PO | Check history - no action needed |
-| "No accepted quantities" | All items were rejected or qty is 0 | No GRPO needed for rejected goods |
+| "No accepted quantities" | All items have accepted_qty = 0 | Provide at least one item with qty > 0 |
 | "SAP system unavailable" | SAP Service Layer is down | Retry later |
 | "Item not found in SAP" | Item code doesn't exist in SAP | Verify item code mapping |
 
@@ -226,9 +256,11 @@ After successful GRPO posting:
    - Different entries can post to same PO
 
 2. **Quantity Validation**
-   - Only accepted_qty is posted
-   - Cannot exceed received_qty
-   - Zero quantity items are skipped
+   - User must provide accepted_qty for each item during GRPO posting
+   - accepted_qty cannot exceed received_qty
+   - rejected_qty is auto-calculated (received_qty - accepted_qty)
+   - Items with accepted_qty = 0 are skipped
+   - All item IDs must belong to the specified PO receipt
 
 3. **Audit Trail**
    - All postings are logged

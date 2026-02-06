@@ -41,12 +41,30 @@ class GRPOPreviewSerializer(serializers.Serializer):
     sap_doc_num = serializers.IntegerField(allow_null=True)
 
 
+class GRPOItemInputSerializer(serializers.Serializer):
+    """Serializer for individual item accepted quantity input"""
+    po_item_receipt_id = serializers.IntegerField(required=True)
+    accepted_qty = serializers.DecimalField(
+        max_digits=12, decimal_places=3, required=True, min_value=0
+    )
+
+
 class GRPOPostRequestSerializer(serializers.Serializer):
     """Serializer for GRPO posting request"""
     vehicle_entry_id = serializers.IntegerField(required=True)
     po_receipt_id = serializers.IntegerField(required=True)
+    items = GRPOItemInputSerializer(many=True, required=True)
+    branch_id = serializers.IntegerField(
+        required=True,
+        help_text="SAP Branch/Business Place ID (BPLId)"
+    )
     warehouse_code = serializers.CharField(required=False, allow_blank=True)
     comments = serializers.CharField(required=False, allow_blank=True)
+
+    def validate_items(self, value):
+        if not value:
+            raise serializers.ValidationError("At least one item with accepted quantity is required")
+        return value
 
 
 class GRPOLinePostingSerializer(serializers.ModelSerializer):

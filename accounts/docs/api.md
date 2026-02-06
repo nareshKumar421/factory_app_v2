@@ -1,47 +1,23 @@
-# Accounts Module
+# Accounts API Documentation
 
-## Overview
-
-The **Accounts Module** handles user authentication, authorization, and department management. It provides a custom user model with email-based authentication and JWT token management.
-
----
-
-## Models
-
-### User (Custom User Model)
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `email` | EmailField | Unique, primary identifier for authentication |
-| `full_name` | CharField(150) | User's full name |
-| `employee_code` | CharField(50) | Unique employee identifier |
-| `is_active` | BooleanField | Account active status (default: True) |
-| `is_staff` | BooleanField | Staff privileges (default: False) |
-| `date_joined` | DateTimeField | Account creation timestamp |
-
-### Department
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `name` | CharField(100) | Department name |
-| `description` | TextField | Optional description |
-
----
-
-## API Documentation
-
-### Base URL
+## Base URL
 ```
 /api/v1/accounts/
 ```
 
 ---
 
+## Authentication Endpoints
+
 ### 1. Login
+
+Authenticate user and get JWT tokens.
 
 ```
 POST /api/v1/accounts/login/
 ```
+
+**Permission Required:** None (Public)
 
 **Request Body:**
 ```json
@@ -88,9 +64,13 @@ POST /api/v1/accounts/login/
 
 ### 2. Refresh Token
 
+Get new access token using refresh token.
+
 ```
 POST /api/v1/accounts/token/refresh/
 ```
+
+**Permission Required:** None (Public)
 
 **Request Body:**
 ```json
@@ -113,11 +93,17 @@ POST /api/v1/accounts/token/refresh/
 
 ---
 
+## User Endpoints
+
 ### 3. Get Current User (Me)
+
+Get authenticated user's profile and permissions.
 
 ```
 GET /api/v1/accounts/me/
 ```
+
+**Permission Required:** `IsAuthenticated`
 
 **Headers:**
 ```
@@ -145,9 +131,9 @@ Authorization: Bearer <access_token>
         }
     ],
     "permissions": [
-        "accounts.add_user",
-        "accounts.change_user",
-        "accounts.view_user"
+        "accounts.can_create_user",
+        "accounts.can_view_user",
+        "accounts.can_edit_user"
     ]
 }
 ```
@@ -156,9 +142,13 @@ Authorization: Bearer <access_token>
 
 ### 4. Change Password
 
+Change authenticated user's password.
+
 ```
 POST /api/v1/accounts/change-password/
 ```
+
+**Permission Required:** `IsAuthenticated`
 
 **Headers:**
 ```
@@ -189,11 +179,17 @@ Authorization: Bearer <access_token>
 
 ---
 
+## Department Endpoints
+
 ### 5. List Departments
+
+Get all departments.
 
 ```
 GET /api/v1/accounts/departments/
 ```
+
+**Permission Required:** `IsAuthenticated` + `accounts.can_view_department`
 
 **Headers:**
 ```
@@ -218,43 +214,111 @@ Authorization: Bearer <access_token>
 
 ---
 
-## Authentication Flow
+## Future User Management Endpoints
+
+### 6. List Users
 
 ```
-┌──────────────┐
-│   Login      │──────► POST /login/ with email & password
-└──────┬───────┘
-       │
-       ▼
-┌──────────────┐
-│  Get Tokens  │──────► Receive access & refresh tokens
-└──────┬───────┘
-       │
-       ▼
-┌──────────────┐
-│  Use Access  │──────► Include in Authorization header
-│    Token     │        Bearer <access_token>
-└──────┬───────┘
-       │
-       ▼
-┌──────────────┐
-│Token Expired?│──────► POST /token/refresh/ with refresh token
-└──────────────┘
+GET /api/v1/accounts/users/
 ```
+
+**Permission Required:** `IsAuthenticated` + `accounts.can_view_user`
 
 ---
 
-## Module Structure
+### 7. Create User
 
 ```
-accounts/
-├── __init__.py
-├── apps.py
-├── models.py           # User, Department models
-├── managers.py         # Custom UserManager
-├── serializers.py      # Login, Me, ChangePassword serializers
-├── views.py            # API views
-├── urls.py             # URL routing
-├── admin.py            # Admin configuration
-└── migrations/
+POST /api/v1/accounts/users/
+```
+
+**Permission Required:** `IsAuthenticated` + `accounts.can_create_user`
+
+---
+
+### 8. Get User Detail
+
+```
+GET /api/v1/accounts/users/<id>/
+```
+
+**Permission Required:** `IsAuthenticated` + `accounts.can_view_user`
+
+**Note:** Users can always view their own profile.
+
+---
+
+### 9. Update User
+
+```
+PUT/PATCH /api/v1/accounts/users/<id>/
+```
+
+**Permission Required:** `IsAuthenticated` + `accounts.can_edit_user`
+
+**Note:** Users can edit their own profile (restricted fields).
+
+---
+
+### 10. Delete User
+
+```
+DELETE /api/v1/accounts/users/<id>/
+```
+
+**Permission Required:** `IsAuthenticated` + `accounts.can_delete_user`
+
+**Note:** Users cannot delete themselves.
+
+---
+
+### 11. Manage User Permissions
+
+```
+GET/PUT /api/v1/accounts/users/<id>/permissions/
+```
+
+**Permission Required:** `IsAuthenticated` + `accounts.can_manage_user_permissions`
+
+---
+
+## Permission Summary
+
+| Endpoint | Method | Permission Required |
+|----------|--------|---------------------|
+| `/login/` | POST | None |
+| `/token/refresh/` | POST | None |
+| `/me/` | GET | IsAuthenticated |
+| `/change-password/` | POST | IsAuthenticated |
+| `/departments/` | GET | IsAuthenticated + can_view_department |
+| `/users/` | GET | IsAuthenticated + can_view_user |
+| `/users/` | POST | IsAuthenticated + can_create_user |
+| `/users/<id>/` | GET | IsAuthenticated + can_view_user |
+| `/users/<id>/` | PUT/PATCH | IsAuthenticated + can_edit_user |
+| `/users/<id>/` | DELETE | IsAuthenticated + can_delete_user |
+| `/users/<id>/permissions/` | GET/PUT | IsAuthenticated + can_manage_user_permissions |
+
+---
+
+## Error Responses
+
+### 401 Unauthorized
+```json
+{
+    "detail": "Authentication credentials were not provided."
+}
+```
+
+### 403 Forbidden
+```json
+{
+    "detail": "You do not have permission to perform this action."
+}
+```
+
+### 404 Not Found
+```json
+{
+    "detail": "Not found."
+}
 ```
