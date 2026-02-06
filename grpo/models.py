@@ -57,13 +57,11 @@ class GRPOPosting(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = "GRPO Posting"
-        verbose_name_plural = "GRPO Postings"
         unique_together = ("vehicle_entry", "po_receipt")
         ordering = ["-created_at"]
         permissions = [
-            ("can_view_pending_grpo", "Can view pending GRPO entries"),
-            ("can_preview_grpo", "Can preview GRPO data"),
+            ("can_view_pending_grpo", "Can view pending grpo entries"),
+            ("can_preview_grpo", "Can preview grpo data"),
             ("can_view_grpo_history", "Can view GRPO posting history"),
         ]
 
@@ -94,10 +92,7 @@ class GRPOLinePosting(models.Model):
     # SAP line details
     base_entry = models.IntegerField(null=True, blank=True, help_text="PO DocEntry in SAP")
     base_line = models.IntegerField(null=True, blank=True, help_text="PO Line Number in SAP")
-
-    class Meta:
-        verbose_name = "GRPO Line Posting"
-        verbose_name_plural = "GRPO Line Postings"
+    
 
     def __str__(self):
         return f"{self.po_item_receipt.item_name} - {self.quantity_posted}"

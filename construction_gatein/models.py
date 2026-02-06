@@ -15,8 +15,6 @@ class ConstructionMaterialCategory(models.Model):
     is_active = models.BooleanField(default=True)
 
     class Meta:
-        verbose_name = "Construction Material Category"
-        verbose_name_plural = "Construction Material Categories"
         ordering = ["category_name"]
         permissions = [
             ("can_manage_material_category", "Can manage material category"),
@@ -122,8 +120,6 @@ class ConstructionGateEntry(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        verbose_name = "Construction Gate Entry"
-        verbose_name_plural = "Construction Gate Entries"
         ordering = ["-created_at"]
         indexes = [
             models.Index(fields=["material_category"]),
