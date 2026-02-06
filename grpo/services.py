@@ -122,12 +122,23 @@ class GRPOService:
         vehicle_entry_id: int,
         po_receipt_id: int,
         user,
+        items: List[Dict[str, Any]],
+        branch_id: int,
         warehouse_code: Optional[str] = None,
         comments: Optional[str] = None
     ) -> GRPOPosting:
         """
         Post GRPO to SAP for a specific PO receipt.
-        Only posts accepted quantities.
+        Updates accepted quantities in POItemReceipt before posting.
+
+        Args:
+            vehicle_entry_id: ID of the vehicle entry
+            po_receipt_id: ID of the PO receipt
+            user: User posting the GRPO
+            items: List of dicts with po_item_receipt_id and accepted_qty
+            branch_id: SAP Branch/Business Place ID (BPLId)
+            warehouse_code: Optional warehouse code for SAP
+            comments: Optional comments for SAP document
         """
         # Get vehicle entry and PO receipt
         try:
@@ -141,6 +152,29 @@ class GRPOService:
             raise ValueError(f"Vehicle entry {vehicle_entry_id} not found")
         except POReceipt.DoesNotExist:
             raise ValueError(f"PO receipt {po_receipt_id} not found for this vehicle entry")
+
+        # Create a mapping of item IDs to accepted quantities from input
+        items_qty_map = {item["po_item_receipt_id"]: item["accepted_qty"] for item in items}
+
+        # Validate all item IDs belong to this PO receipt
+        po_item_ids = set(po_receipt.items.values_list("id", flat=True))
+        invalid_ids = set(items_qty_map.keys()) - po_item_ids
+        if invalid_ids:
+            raise ValueError(f"Invalid PO item receipt IDs: {invalid_ids}")
+
+        # Update accepted and rejected quantities in POItemReceipt
+        for item in po_receipt.items.all():
+            if item.id in items_qty_map:
+                accepted_qty = items_qty_map[item.id]
+                # Validate accepted_qty doesn't exceed received_qty
+                if accepted_qty > item.received_qty:
+                    raise ValueError(
+                        f"Accepted qty ({accepted_qty}) cannot exceed received qty "
+                        f"({item.received_qty}) for item {item.item_name}"
+                    )
+                item.accepted_qty = accepted_qty
+                item.rejected_qty = item.received_qty - accepted_qty
+                item.save()
 
         # Check if already posted
         existing = GRPOPosting.objects.filter(
@@ -210,11 +244,15 @@ class GRPOService:
         # Build full payload
         grpo_payload = {
             "CardCode": po_receipt.supplier_code,
+            "BPL_IDAssignedToInvoice": branch_id,
             "DocumentLines": document_lines
         }
 
         if comments:
             grpo_payload["Comments"] = comments
+
+        # Log payload for debugging
+        logger.info(f"GRPO Payload: {grpo_payload}")
 
         # Post to SAP
         try:

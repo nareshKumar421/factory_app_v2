@@ -19,7 +19,7 @@ Content-Type: application/json
 
 ### 1. List Pending GRPO Entries
 
-Returns list of completed gate entries that are ready for GRPO posting.
+Returns list of completed gate entries that have POs pending GRPO posting. Entries where all POs have been posted are automatically excluded.
 
 **Endpoint:** `GET /api/v1/grpo/pending/`
 
@@ -49,8 +49,10 @@ Returns list of completed gate entries that are ready for GRPO posting.
 | entry_time | datetime | Time of gate entry |
 | total_po_count | integer | Total number of POs in this entry |
 | posted_po_count | integer | Number of POs already posted to SAP |
-| pending_po_count | integer | Number of POs pending posting |
-| is_fully_posted | boolean | True if all POs are posted |
+| pending_po_count | integer | Number of POs pending posting (always > 0) |
+| is_fully_posted | boolean | Always false (fully posted entries are excluded) |
+
+**Note:** This endpoint only returns entries with `pending_po_count > 0`. Once all POs in an entry are posted, the entry will no longer appear in this list.
 
 ---
 
@@ -144,7 +146,7 @@ Returns all data required for GRPO posting for a specific gate entry.
 
 ### 3. Post GRPO to SAP
 
-Posts GRPO to SAP for a specific PO receipt. Only accepted quantities are posted.
+Posts GRPO to SAP for a specific PO receipt. Users must provide accepted quantities for each item, which are stored in POItemReceipt before posting to SAP.
 
 **Endpoint:** `POST /api/v1/grpo/post/`
 
@@ -153,6 +155,11 @@ Posts GRPO to SAP for a specific PO receipt. Only accepted quantities are posted
 {
   "vehicle_entry_id": 123,
   "po_receipt_id": 456,
+  "items": [
+    {"po_item_receipt_id": 789, "accepted_qty": 950.000},
+    {"po_item_receipt_id": 790, "accepted_qty": 500.000}
+  ],
+  "branch_id": 1,
   "warehouse_code": "WH01",
   "comments": "Gate entry completed - goods received"
 }
@@ -164,8 +171,19 @@ Posts GRPO to SAP for a specific PO receipt. Only accepted quantities are posted
 |-------|------|----------|-------------|
 | vehicle_entry_id | integer | Yes | Vehicle entry ID |
 | po_receipt_id | integer | Yes | PO receipt ID |
+| items | array | Yes | List of items with accepted quantities |
+| items[].po_item_receipt_id | integer | Yes | PO item receipt ID (from preview) |
+| items[].accepted_qty | decimal | Yes | Quantity to accept (min: 0, max: received_qty) |
+| branch_id | integer | Yes | SAP Branch/Business Place ID (BPLId) |
 | warehouse_code | string | No | Target warehouse code in SAP |
 | comments | string | No | Comments/remarks for the GRPO |
+
+**Items Validation:**
+- At least one item is required
+- `accepted_qty` cannot be negative
+- `accepted_qty` cannot exceed `received_qty` for the item
+- `rejected_qty` is automatically calculated as `received_qty - accepted_qty`
+- All `po_item_receipt_id` values must belong to the specified PO receipt
 
 **Success Response (201 Created):**
 ```json
@@ -194,19 +212,37 @@ Posts GRPO to SAP for a specific PO receipt. Only accepted quantities are posted
 
 | Status | Error | Description |
 |--------|-------|-------------|
-| 400 | Invalid request data | Missing required fields |
+| 400 | Invalid request data | Missing required fields or invalid format |
+| 400 | At least one item required | Items array is empty |
+| 400 | Invalid PO item receipt IDs | Item IDs don't belong to the PO receipt |
+| 400 | Accepted qty exceeds received qty | accepted_qty > received_qty for an item |
 | 400 | Gate entry is not completed | Entry status is not COMPLETED/QC_COMPLETED |
 | 400 | GRPO already posted | GRPO was already posted for this PO |
-| 400 | No accepted quantities | No items with accepted_qty > 0 |
+| 400 | No accepted quantities | All items have accepted_qty = 0 |
 | 400 | SAP validation error | SAP rejected the GRPO |
 | 401 | Unauthorized | Invalid or missing token |
 | 502 | SAP error | SAP data error |
 | 503 | SAP unavailable | SAP system is not reachable |
 
-**Error Response Example:**
+**Error Response Examples:**
 ```json
 {
   "detail": "Gate entry is not completed. Current status: IN_PROGRESS"
+}
+```
+
+```json
+{
+  "detail": "Accepted qty (1200) cannot exceed received qty (1000) for item Raw Material A"
+}
+```
+
+```json
+{
+  "detail": "Invalid request data",
+  "errors": {
+    "items": ["At least one item with accepted quantity is required"]
+  }
 }
 ```
 

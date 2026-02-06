@@ -13,6 +13,7 @@ This app provides APIs to:
 ## Documentation Index
 
 - [API Reference](api_reference.md) - Complete API documentation with endpoints, payloads, and responses
+- [Frontend Guide](frontend_guide.md) - Complete guide for frontend developers with UI mockups and code examples
 - [Models](models.md) - Database models and their relationships
 - [Workflow](workflow.md) - GRPO posting workflow and business logic
 - [Error Codes](error_codes.md) - Error codes and troubleshooting
@@ -41,7 +42,12 @@ This app provides APIs to:
    POST /api/v1/grpo/post/
    {
      "vehicle_entry_id": 123,
-     "po_receipt_id": 456
+     "po_receipt_id": 456,
+     "items": [
+       {"po_item_receipt_id": 1, "accepted_qty": 100.5},
+       {"po_item_receipt_id": 2, "accepted_qty": 50.0}
+     ],
+     "branch_id": 1
    }
    ```
 
