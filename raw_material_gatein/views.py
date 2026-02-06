@@ -15,6 +15,7 @@ from sap_client.exceptions import SAPConnectionError, SAPDataError
 from .models import POReceipt, POItemReceipt
 from .serializers import POReceiveRequestSerializer, POItemReceiveSerializer
 from .services import validate_received_quantity, complete_gate_entry
+from .permissions import CanReceivePO, CanViewPOReceipt, CanCompleteRawMaterialEntry
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ class ReceivePOAPI(APIView):
     """
     Receive raw material PO items against a vehicle entry
     """
-    permission_classes = [IsAuthenticated, HasCompanyContext]
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanReceivePO]
 
     @transaction.atomic
     def post(self, request, gate_entry_id):
@@ -113,7 +114,7 @@ class GatePOListAPI(APIView):
     """
     List all PO receipts for a gate entry
     """
-    permission_classes = [IsAuthenticated, HasCompanyContext]
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanViewPOReceipt]
 
     def get(self, request, gate_entry_id):
         entry = get_object_or_404(
@@ -150,7 +151,7 @@ class CompleteGateEntryAPI(APIView):
     """
     Complete and lock a gate entry
     """
-    permission_classes = [IsAuthenticated, HasCompanyContext]
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanCompleteRawMaterialEntry]
 
     def post(self, request, gate_entry_id):
         entry = get_object_or_404(

@@ -13,6 +13,13 @@ from .models import ConstructionGateEntry, ConstructionMaterialCategory
 from .serializers import ConstructionGateEntrySerializer, ConstructionMaterialCategorySerializer
 from .services import complete_construction_gate_entry
 from company.permissions import HasCompanyContext
+from .permissions import (
+    CanCreateConstructionEntry,
+    CanViewConstructionEntry,
+    CanEditConstructionEntry,
+    CanCompleteConstructionEntry,
+    CanViewMaterialCategory,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +31,11 @@ class ConstructionGateEntryCreateAPI(APIView):
     POST: Create new construction entry for a gate entry.
     """
     permission_classes = [IsAuthenticated, HasCompanyContext]
+
+    def get_permissions(self):
+        if self.request.method == "POST":
+            return [IsAuthenticated(), HasCompanyContext(), CanCreateConstructionEntry()]
+        return [IsAuthenticated(), HasCompanyContext(), CanViewConstructionEntry()]
 
     def get(self, request, gate_entry_id):
         """Get construction entry for a specific vehicle entry"""
@@ -104,7 +116,7 @@ class ConstructionGateEntryUpdateAPI(APIView):
     Update existing Construction / Civil Work Material gate entry.
     PUT/PATCH: Update construction entry.
     """
-    permission_classes = [IsAuthenticated, HasCompanyContext]
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanEditConstructionEntry]
 
     @transaction.atomic
     def put(self, request, gate_entry_id):
@@ -147,7 +159,7 @@ class ConstructionGateCompleteAPI(APIView):
     """
     Final completion for Construction / Civil Work Material gate entry.
     """
-    permission_classes = [IsAuthenticated, HasCompanyContext]
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanCompleteConstructionEntry]
 
     def post(self, request, gate_entry_id):
         entry = get_object_or_404(
@@ -182,7 +194,7 @@ class ConstructionMaterialCategoryListAPI(APIView):
     """
     List all active construction material categories for dropdown.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanViewMaterialCategory]
 
     def get(self, request):
         categories = ConstructionMaterialCategory.objects.filter(is_active=True)
