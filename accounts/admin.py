@@ -152,5 +152,6 @@ class UserAdmin(BaseUserAdmin):
 
     
 
+admin.site.register(Department)
 
 
