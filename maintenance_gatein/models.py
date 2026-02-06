@@ -17,8 +17,6 @@ class MaintenanceType(models.Model):
     is_active = models.BooleanField(default=True)
 
     class Meta:
-        verbose_name = "Maintenance Type"
-        verbose_name_plural = "Maintenance Types"
         ordering = ["type_name"]
         permissions = [
             ("can_manage_maintenance_type", "Can manage maintenance type"),
@@ -127,8 +125,6 @@ class MaintenanceGateEntry(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        verbose_name = "Maintenance Gate Entry"
-        verbose_name_plural = "Maintenance Gate Entries"
         ordering = ["-created_at"]
         indexes = [
             models.Index(fields=["maintenance_type"]),

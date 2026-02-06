@@ -22,8 +22,6 @@ class CategoryList(models.Model):
     category_name = models.CharField(max_length=50, unique=True)
 
     class Meta:
-        verbose_name = "Category List"
-        verbose_name_plural = "Category Lists"
         ordering = ["category_name"]
         permissions = [
             ("can_manage_category", "Can manage category"),
@@ -104,8 +102,6 @@ class DailyNeedGateEntry(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        verbose_name = "Daily Need Gate Entry"
-        verbose_name_plural = "Daily Need Gate Entries"
         ordering = ["-created_at"]
         indexes = [
             models.Index(fields=["item_category"]),
