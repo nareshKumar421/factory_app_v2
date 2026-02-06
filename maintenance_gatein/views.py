@@ -13,6 +13,13 @@ from .models import MaintenanceGateEntry, MaintenanceType
 from .serializers import MaintenanceGateEntrySerializer, MaintenanceTypeSerializer
 from .services import complete_maintenance_gate_entry
 from company.permissions import HasCompanyContext
+from .permissions import (
+    CanCreateMaintenanceEntry,
+    CanViewMaintenanceEntry,
+    CanEditMaintenanceEntry,
+    CanCompleteMaintenanceEntry,
+    CanViewMaintenanceType,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +31,11 @@ class MaintenanceGateEntryCreateAPI(APIView):
     POST: Create new maintenance entry for a gate entry.
     """
     permission_classes = [IsAuthenticated, HasCompanyContext]
+
+    def get_permissions(self):
+        if self.request.method == "POST":
+            return [IsAuthenticated(), HasCompanyContext(), CanCreateMaintenanceEntry()]
+        return [IsAuthenticated(), HasCompanyContext(), CanViewMaintenanceEntry()]
 
     def get(self, request, gate_entry_id):
         """Get maintenance entry for a specific vehicle entry"""
@@ -104,7 +116,7 @@ class MaintenanceGateEntryUpdateAPI(APIView):
     Update existing Maintenance & Repair Material gate entry.
     PUT/PATCH: Update maintenance entry.
     """
-    permission_classes = [IsAuthenticated, HasCompanyContext]
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanEditMaintenanceEntry]
 
     @transaction.atomic
     def put(self, request, gate_entry_id):
@@ -147,7 +159,7 @@ class MaintenanceGateCompleteAPI(APIView):
     """
     Final completion for Maintenance & Repair Material gate entry.
     """
-    permission_classes = [IsAuthenticated, HasCompanyContext]
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanCompleteMaintenanceEntry]
 
     def post(self, request, gate_entry_id):
         entry = get_object_or_404(
@@ -182,7 +194,7 @@ class MaintenanceTypeListAPI(APIView):
     """
     List all active maintenance types for dropdown.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanViewMaintenanceType]
 
     def get(self, request):
         types = MaintenanceType.objects.filter(is_active=True)

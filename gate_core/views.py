@@ -8,13 +8,19 @@ from company.permissions import HasCompanyContext
 from driver_management.models import VehicleEntry
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import NotFound, ValidationError
+from .permissions import (
+    CanViewRawMaterialFullEntry,
+    CanViewDailyNeedFullEntry,
+    CanViewMaintenanceFullEntry,
+    CanViewConstructionFullEntry,
+)
 
 class RawMaterialGateEntryFullView(APIView):
     """
     Get complete raw material gate entry data (read-only)
     Includes QC status summary for each item and overall gate entry
     """
-    permission_classes = [IsAuthenticated, HasCompanyContext]
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanViewRawMaterialFullEntry]
 
     def _get_qc_status(self, arrival_slip, inspection):
         """
@@ -291,6 +297,7 @@ class DailyNeedGateEntryFullView(APIView):
     Get complete Daily Need / Canteen gate entry data
     (Human readable, no serializers)
     """
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanViewDailyNeedFullEntry]
 
     def get(self, request, gate_entry_id):
 
@@ -408,6 +415,7 @@ class MaintenanceGateEntryFullView(APIView):
     Get complete Maintenance & Repair Material gate entry data
     (Human readable, no serializers)
     """
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanViewMaintenanceFullEntry]
 
     def get(self, request, gate_entry_id):
 
@@ -529,6 +537,7 @@ class ConstructionGateEntryFullView(APIView):
     Get complete Construction / Civil Work Material gate entry data
     (Human readable, no serializers)
     """
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanViewConstructionFullEntry]
 
     def get(self, request, gate_entry_id):
 
