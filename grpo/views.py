@@ -14,6 +14,13 @@ from .serializers import (
     GRPOPostingSerializer,
     GRPOPostResponseSerializer
 )
+from .permissions import (
+    CanViewPendingGRPO,
+    CanPreviewGRPO,
+    CanCreateGRPOPosting,
+    CanViewGRPOHistory,
+    CanViewGRPOPosting,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +31,7 @@ class PendingGRPOListAPI(APIView):
 
     GET /api/grpo/pending/
     """
-    permission_classes = [IsAuthenticated, HasCompanyContext]
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanViewPendingGRPO]
 
     def get(self, request):
         service = GRPOService(company_code=request.company.company.code)
@@ -61,7 +68,7 @@ class GRPOPreviewAPI(APIView):
 
     GET /api/grpo/preview/<vehicle_entry_id>/
     """
-    permission_classes = [IsAuthenticated, HasCompanyContext]
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanPreviewGRPO]
 
     def get(self, request, vehicle_entry_id):
         service = GRPOService(company_code=request.company.company.code)
@@ -96,7 +103,7 @@ class PostGRPOAPI(APIView):
         "comments": "Gate entry completed"  // optional
     }
     """
-    permission_classes = [IsAuthenticated, HasCompanyContext]
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanCreateGRPOPosting]
 
     def post(self, request):
         serializer = GRPOPostRequestSerializer(data=request.data)
@@ -165,7 +172,7 @@ class GRPOPostingHistoryAPI(APIView):
     GET /api/grpo/history/
     GET /api/grpo/history/?vehicle_entry_id=123
     """
-    permission_classes = [IsAuthenticated, HasCompanyContext]
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanViewGRPOHistory]
 
     def get(self, request):
         vehicle_entry_id = request.GET.get("vehicle_entry_id")
@@ -185,7 +192,7 @@ class GRPOPostingDetailAPI(APIView):
 
     GET /api/grpo/<posting_id>/
     """
-    permission_classes = [IsAuthenticated, HasCompanyContext]
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanViewGRPOPosting]
 
     def get(self, request, posting_id):
         from .models import GRPOPosting

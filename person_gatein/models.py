@@ -12,6 +12,12 @@ class PersonType(models.Model):
     name = models.CharField(max_length=50, unique=True)  # Visitor / Labour
     is_active = models.BooleanField(default=True)
 
+    class Meta:
+        permissions = [
+            ("can_view_person_type", "Can view person type"),
+            ("can_manage_person_type", "Can manage person type"),
+        ]
+
     def __str__(self):
         return self.name
 
@@ -23,6 +29,12 @@ class Gate(models.Model):
     name = models.CharField(max_length=100)
     location = models.CharField(max_length=150, blank=True, null=True)
     is_active = models.BooleanField(default=True)
+
+    class Meta:
+        permissions = [
+            ("can_view_gate", "Can view gate"),
+            ("can_manage_gate", "Can manage gate"),
+        ]
 
     def __str__(self):
         return self.name
@@ -38,6 +50,14 @@ class Contractor(models.Model):
     address = models.TextField(blank=True, null=True)
     contract_valid_till = models.DateField(blank=True, null=True)
     is_active = models.BooleanField(default=True)
+
+    class Meta:
+        permissions = [
+            ("can_create_contractor", "Can create contractor"),
+            ("can_view_contractor", "Can view contractor"),
+            ("can_edit_contractor", "Can edit contractor"),
+            ("can_delete_contractor", "Can delete contractor"),
+        ]
 
     def __str__(self):
         return self.contractor_name
@@ -59,6 +79,14 @@ class Visitor(models.Model):
     blacklisted = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        permissions = [
+            ("can_create_visitor", "Can create visitor"),
+            ("can_view_visitor", "Can view visitor"),
+            ("can_edit_visitor", "Can edit visitor"),
+            ("can_delete_visitor", "Can delete visitor"),
+        ]
 
     def __str__(self):
         return f"{self.name} ({self.company_name})"
@@ -86,6 +114,14 @@ class Labour(models.Model):
     permit_valid_till = models.DateField(blank=True, null=True)
 
     is_active = models.BooleanField(default=True)
+
+    class Meta:
+        permissions = [
+            ("can_create_labour", "Can create labour"),
+            ("can_view_labour", "Can view labour"),
+            ("can_edit_labour", "Can edit labour"),
+            ("can_delete_labour", "Can delete labour"),
+        ]
 
     def __str__(self):
         return f"{self.name} - {self.contractor.contractor_name}"
@@ -171,6 +207,16 @@ class EntryLog(models.Model):
             models.Index(fields=["status"]),
             models.Index(fields=["entry_time"]),
             models.Index(fields=["person_type"]),
+        ]
+        permissions = [
+            ("can_create_entry", "Can create person gate entry"),
+            ("can_view_entry", "Can view person gate entry"),
+            ("can_edit_entry", "Can edit person gate entry"),
+            ("can_delete_entry", "Can delete person gate entry"),
+            ("can_cancel_entry", "Can cancel person gate entry"),
+            ("can_exit_entry", "Can mark person gate exit"),
+            ("can_search_entry", "Can search person gate entries"),
+            ("can_view_dashboard", "Can view person gate dashboard"),
         ]
 
     def __str__(self):

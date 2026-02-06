@@ -11,6 +11,22 @@ from datetime import datetime, timedelta
 from .models import *
 from .serializers import *
 from .services.entry_service import EntryService
+from .permissions import (
+    CanViewPersonType,
+    CanManagePersonType,
+    CanViewGate,
+    CanManageGate,
+    CanManageContractor,
+    CanManageVisitor,
+    CanManageLabour,
+    CanCreateEntry,
+    CanViewEntry,
+    CanEditEntry,
+    CanCancelEntry,
+    CanExitEntry,
+    CanSearchEntry,
+    CanViewDashboard,
+)
 
 
 # -------------------------
@@ -21,34 +37,46 @@ class PersonTypeViewSet(viewsets.ModelViewSet):
     serializer_class = PersonTypeSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_permissions(self):
+        if self.action in ["create", "update", "partial_update", "destroy"]:
+            return [IsAuthenticated(), CanManagePersonType()]
+        return [IsAuthenticated(), CanViewPersonType()]
+
 
 class GateViewSet(viewsets.ModelViewSet):
     queryset = Gate.objects.all()
     serializer_class = GateSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_permissions(self):
+        if self.action in ["create", "update", "partial_update", "destroy"]:
+            return [IsAuthenticated(), CanManageGate()]
+        return [IsAuthenticated(), CanViewGate()]
+
 
 class ContractorViewSet(viewsets.ModelViewSet):
     queryset = Contractor.objects.all()
     serializer_class = ContractorSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageContractor]
+
 
 class VisitorViewSet(viewsets.ModelViewSet):
     queryset = Visitor.objects.all()
     serializer_class = VisitorSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageVisitor]
+
 
 class LabourViewSet(viewsets.ModelViewSet):
     queryset = Labour.objects.all()
     serializer_class = LabourSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageLabour]
 
 # -------------------------
 # Entry APIs
 # -------------------------
 
 @api_view(["POST"])
-@permission_classes([IsAuthenticated, HasCompanyContext])
+@permission_classes([IsAuthenticated, HasCompanyContext, CanCreateEntry])
 def create_entry(request):
     try:
         entry = EntryService.create_entry(request.data, request.user,request=request)
@@ -59,7 +87,7 @@ def create_entry(request):
 
 
 @api_view(["POST"])
-@permission_classes([IsAuthenticated, HasCompanyContext])
+@permission_classes([IsAuthenticated, HasCompanyContext, CanExitEntry])
 def exit_entry(request, pk):
     try:
         gate_out_id = request.data.get("gate_out")
@@ -71,7 +99,7 @@ def exit_entry(request, pk):
 
 
 @api_view(["GET"])
-@permission_classes([IsAuthenticated, HasCompanyContext])
+@permission_classes([IsAuthenticated, HasCompanyContext, CanViewEntry])
 def inside_list(request):
     entries = EntryLog.objects.filter(status="IN").order_by("-entry_time")
     serializer = EntryLogSerializer(entries, many=True)
@@ -79,7 +107,7 @@ def inside_list(request):
 
 
 @api_view(["GET"])
-@permission_classes([IsAuthenticated, HasCompanyContext])
+@permission_classes([IsAuthenticated, HasCompanyContext, CanViewEntry])
 def entries_by_date(request):
     """
     Get all entries filtered by date.
@@ -173,7 +201,7 @@ def entries_by_date(request):
 
 
 @api_view(["GET"])
-@permission_classes([IsAuthenticated, HasCompanyContext])
+@permission_classes([IsAuthenticated, HasCompanyContext, CanViewEntry])
 def entry_detail(request, pk):
     """
     Get detailed information about a specific entry.
@@ -209,7 +237,7 @@ def entry_detail(request, pk):
 
 
 @api_view(["GET"])
-@permission_classes([IsAuthenticated, HasCompanyContext])
+@permission_classes([IsAuthenticated, HasCompanyContext, CanViewEntry])
 def visitor_entry_history(request, visitor_id):
     """
     Get entry history for a specific visitor.
@@ -237,7 +265,7 @@ def visitor_entry_history(request, visitor_id):
 
 
 @api_view(["GET"])
-@permission_classes([IsAuthenticated, HasCompanyContext])
+@permission_classes([IsAuthenticated, HasCompanyContext, CanViewEntry])
 def labour_entry_history(request, labour_id):
     """
     Get entry history for a specific labour.
@@ -265,7 +293,7 @@ def labour_entry_history(request, labour_id):
 
 
 @api_view(["GET"])
-@permission_classes([IsAuthenticated, HasCompanyContext])
+@permission_classes([IsAuthenticated, HasCompanyContext, CanViewDashboard])
 def dashboard_stats(request):
     """
     Get dashboard statistics for gate-in management.
@@ -330,7 +358,7 @@ def dashboard_stats(request):
 
 
 @api_view(["POST"])
-@permission_classes([IsAuthenticated, HasCompanyContext])
+@permission_classes([IsAuthenticated, HasCompanyContext, CanCancelEntry])
 def cancel_entry(request, pk):
     """
     Cancel an entry (mark as CANCELLED).
@@ -358,7 +386,7 @@ def cancel_entry(request, pk):
 
 
 @api_view(["PATCH"])
-@permission_classes([IsAuthenticated, HasCompanyContext])
+@permission_classes([IsAuthenticated, HasCompanyContext, CanEditEntry])
 def update_entry(request, pk):
     """
     Update entry details (purpose, remarks, vehicle_no, approved_by).
@@ -382,7 +410,7 @@ def update_entry(request, pk):
 
 
 @api_view(["GET"])
-@permission_classes([IsAuthenticated, HasCompanyContext])
+@permission_classes([IsAuthenticated, HasCompanyContext, CanSearchEntry])
 def search_entries(request):
     """
     Search entries by name, vehicle number, or purpose.
@@ -428,7 +456,7 @@ def search_entries(request):
 
 
 @api_view(["GET"])
-@permission_classes([IsAuthenticated, HasCompanyContext])
+@permission_classes([IsAuthenticated, HasCompanyContext, CanViewEntry])
 def check_person_status(request):
     """
     Check if a visitor or labour is currently inside.

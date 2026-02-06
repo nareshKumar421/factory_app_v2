@@ -13,6 +13,12 @@ from .models import DailyNeedGateEntry
 from .serializers import CategoryListSerializer, DailyNeedGateEntrySerializer
 from .services import complete_daily_need_gate_entry
 from company.permissions import HasCompanyContext
+from .permissions import (
+    CanCreateDailyNeedEntry,
+    CanViewDailyNeedEntry,
+    CanCompleteDailyNeedEntry,
+    CanViewCategory,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +27,12 @@ class DailyNeedGateEntryCreateAPI(APIView):
     """
     Create Daily Need / Canteen gate entry
     """
-    permission_classes = [IsAuthenticated,HasCompanyContext]
+    permission_classes = [IsAuthenticated, HasCompanyContext]
+
+    def get_permissions(self):
+        if self.request.method == "POST":
+            return [IsAuthenticated(), HasCompanyContext(), CanCreateDailyNeedEntry()]
+        return [IsAuthenticated(), HasCompanyContext(), CanViewDailyNeedEntry()]
 
     def get(self, request, gate_entry_id):
         entry = get_object_or_404(VehicleEntry, id=gate_entry_id, company=request.company.company)
@@ -86,7 +97,7 @@ class DailyNeedGateCompleteAPI(APIView):
     """
     Final completion for Daily Need / Canteen gate entry
     """
-    permission_classes = [IsAuthenticated,HasCompanyContext]
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanCompleteDailyNeedEntry]
 
     def post(self, request, gate_entry_id):
         entry = get_object_or_404(VehicleEntry, id=gate_entry_id, company=request.company.company)
@@ -117,7 +128,7 @@ class CategoryListAPI(APIView):
     """
     List all categories for Daily Need / Canteen items
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanViewCategory]
 
     def get(self, request):
         categories = DailyNeedGateEntry.item_category.field.related_model.objects.all()

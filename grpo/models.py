@@ -61,6 +61,13 @@ class GRPOPosting(models.Model):
         verbose_name_plural = "GRPO Postings"
         unique_together = ("vehicle_entry", "po_receipt")
         ordering = ["-created_at"]
+        permissions = [
+            ("can_view_grpo_posting", "Can view GRPO posting"),
+            ("can_create_grpo_posting", "Can create GRPO posting"),
+            ("can_view_pending_grpo", "Can view pending GRPO entries"),
+            ("can_preview_grpo", "Can preview GRPO data"),
+            ("can_view_grpo_history", "Can view GRPO posting history"),
+        ]
 
     def __str__(self):
         return f"GRPO for {self.po_receipt.po_number} - {self.status}"

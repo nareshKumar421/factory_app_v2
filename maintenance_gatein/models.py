@@ -20,6 +20,10 @@ class MaintenanceType(models.Model):
         verbose_name = "Maintenance Type"
         verbose_name_plural = "Maintenance Types"
         ordering = ["type_name"]
+        permissions = [
+            ("can_view_maintenance_type", "Can view maintenance type"),
+            ("can_manage_maintenance_type", "Can manage maintenance type"),
+        ]
 
     def __str__(self):
         return self.type_name
@@ -132,6 +136,13 @@ class MaintenanceGateEntry(models.Model):
             models.Index(fields=["urgency_level"]),
             models.Index(fields=["created_at"]),
             models.Index(fields=["work_order_number"]),
+        ]
+        permissions = [
+            ("can_create_maintenance_entry", "Can create maintenance gate entry"),
+            ("can_view_maintenance_entry", "Can view maintenance gate entry"),
+            ("can_edit_maintenance_entry", "Can edit maintenance gate entry"),
+            ("can_delete_maintenance_entry", "Can delete maintenance gate entry"),
+            ("can_complete_maintenance_entry", "Can complete maintenance gate entry"),
         ]
 
     def __str__(self):
