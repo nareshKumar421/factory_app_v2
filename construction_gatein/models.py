@@ -19,7 +19,6 @@ class ConstructionMaterialCategory(models.Model):
         verbose_name_plural = "Construction Material Categories"
         ordering = ["category_name"]
         permissions = [
-            ("can_view_material_category", "Can view material category"),
             ("can_manage_material_category", "Can manage material category"),
         ]
 
@@ -133,10 +132,6 @@ class ConstructionGateEntry(models.Model):
             models.Index(fields=["work_order_number"]),
         ]
         permissions = [
-            ("can_create_construction_entry", "Can create construction gate entry"),
-            ("can_view_construction_entry", "Can view construction gate entry"),
-            ("can_edit_construction_entry", "Can edit construction gate entry"),
-            ("can_delete_construction_entry", "Can delete construction gate entry"),
             ("can_complete_construction_entry", "Can complete construction gate entry"),
         ]
 

@@ -21,7 +21,6 @@ class MaintenanceType(models.Model):
         verbose_name_plural = "Maintenance Types"
         ordering = ["type_name"]
         permissions = [
-            ("can_view_maintenance_type", "Can view maintenance type"),
             ("can_manage_maintenance_type", "Can manage maintenance type"),
         ]
 
@@ -138,10 +137,6 @@ class MaintenanceGateEntry(models.Model):
             models.Index(fields=["work_order_number"]),
         ]
         permissions = [
-            ("can_create_maintenance_entry", "Can create maintenance gate entry"),
-            ("can_view_maintenance_entry", "Can view maintenance gate entry"),
-            ("can_edit_maintenance_entry", "Can edit maintenance gate entry"),
-            ("can_delete_maintenance_entry", "Can delete maintenance gate entry"),
             ("can_complete_maintenance_entry", "Can complete maintenance gate entry"),
         ]
 

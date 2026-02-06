@@ -23,7 +23,7 @@ Retrieve existing maintenance entry for a gate entry.
 GET /api/v1/maintenance-gatein/gate-entries/{gate_entry_id}/maintenance/
 ```
 
-**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `maintenance_gatein.can_view_maintenance_entry`
+**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `maintenance_gatein.view_maintenancegateentry`
 
 **Response (200 OK):**
 ```json
@@ -64,7 +64,7 @@ Create new maintenance gate entry for a vehicle entry.
 POST /api/v1/maintenance-gatein/gate-entries/{gate_entry_id}/maintenance/
 ```
 
-**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `maintenance_gatein.can_create_maintenance_entry`
+**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `maintenance_gatein.add_maintenancegateentry`
 
 **Request Body:**
 ```json
@@ -111,7 +111,7 @@ Update existing maintenance gate entry.
 PUT /api/v1/maintenance-gatein/gate-entries/{gate_entry_id}/maintenance/update/
 ```
 
-**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `maintenance_gatein.can_edit_maintenance_entry`
+**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `maintenance_gatein.change_maintenancegateentry`
 
 **Request Body:** (partial update supported)
 ```json
@@ -162,7 +162,7 @@ List all active maintenance types (for dropdown).
 GET /api/v1/maintenance-gatein/gate-entries/maintenance/types/
 ```
 
-**Permission Required:** `IsAuthenticated` + `maintenance_gatein.can_view_maintenance_type`
+**Permission Required:** `IsAuthenticated` + `maintenance_gatein.view_maintenancetype`
 
 **Response (200 OK):**
 ```json
@@ -188,22 +188,22 @@ GET /api/v1/maintenance-gatein/gate-entries/maintenance/types/
 
 | Endpoint | Method | Permission Codename |
 |----------|--------|---------------------|
-| `/gate-entries/{id}/maintenance/` | GET | `can_view_maintenance_entry` |
-| `/gate-entries/{id}/maintenance/` | POST | `can_create_maintenance_entry` |
-| `/gate-entries/{id}/maintenance/update/` | PUT | `can_edit_maintenance_entry` |
+| `/gate-entries/{id}/maintenance/` | GET | `view_maintenancegateentry` |
+| `/gate-entries/{id}/maintenance/` | POST | `add_maintenancegateentry` |
+| `/gate-entries/{id}/maintenance/update/` | PUT | `change_maintenancegateentry` |
 | `/gate-entries/{id}/complete/` | POST | `can_complete_maintenance_entry` |
-| `/gate-entries/maintenance/types/` | GET | `can_view_maintenance_type` |
+| `/gate-entries/maintenance/types/` | GET | `view_maintenancetype` |
 
 ## All Permissions
 
 | Permission Codename | Description |
 |---------------------|-------------|
-| `maintenance_gatein.can_create_maintenance_entry` | Can create maintenance gate entry |
-| `maintenance_gatein.can_view_maintenance_entry` | Can view maintenance gate entry |
-| `maintenance_gatein.can_edit_maintenance_entry` | Can edit maintenance gate entry |
-| `maintenance_gatein.can_delete_maintenance_entry` | Can delete maintenance gate entry |
+| `maintenance_gatein.add_maintenancegateentry` | Can add maintenance gate entry |
+| `maintenance_gatein.view_maintenancegateentry` | Can view maintenance gate entry |
+| `maintenance_gatein.change_maintenancegateentry` | Can change maintenance gate entry |
+| `maintenance_gatein.delete_maintenancegateentry` | Can delete maintenance gate entry |
 | `maintenance_gatein.can_complete_maintenance_entry` | Can complete maintenance gate entry |
-| `maintenance_gatein.can_view_maintenance_type` | Can view maintenance type |
+| `maintenance_gatein.view_maintenancetype` | Can view maintenance type |
 | `maintenance_gatein.can_manage_maintenance_type` | Can manage maintenance type |
 
 ---

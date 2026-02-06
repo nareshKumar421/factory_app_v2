@@ -21,9 +21,9 @@ Company-Code: <company_code>
 
 | Method | Endpoint | Permission Required |
 |--------|----------|---------------------|
-| GET | `/person-types/` | `IsAuthenticated` + `can_view_person_type` |
+| GET | `/person-types/` | `IsAuthenticated` + `view_persontype` |
 | POST | `/person-types/` | `IsAuthenticated` + `can_manage_person_type` |
-| GET | `/person-types/{id}/` | `IsAuthenticated` + `can_view_person_type` |
+| GET | `/person-types/{id}/` | `IsAuthenticated` + `view_persontype` |
 | PUT | `/person-types/{id}/` | `IsAuthenticated` + `can_manage_person_type` |
 | DELETE | `/person-types/{id}/` | `IsAuthenticated` + `can_manage_person_type` |
 
@@ -33,9 +33,9 @@ Company-Code: <company_code>
 
 | Method | Endpoint | Permission Required |
 |--------|----------|---------------------|
-| GET | `/gates/` | `IsAuthenticated` + `can_view_gate` |
+| GET | `/gates/` | `IsAuthenticated` + `view_gate` |
 | POST | `/gates/` | `IsAuthenticated` + `can_manage_gate` |
-| GET | `/gates/{id}/` | `IsAuthenticated` + `can_view_gate` |
+| GET | `/gates/{id}/` | `IsAuthenticated` + `view_gate` |
 | PUT | `/gates/{id}/` | `IsAuthenticated` + `can_manage_gate` |
 | DELETE | `/gates/{id}/` | `IsAuthenticated` + `can_manage_gate` |
 
@@ -45,11 +45,11 @@ Company-Code: <company_code>
 
 | Method | Endpoint | Permission Required |
 |--------|----------|---------------------|
-| GET | `/contractors/` | `IsAuthenticated` + `can_view_contractor` |
-| POST | `/contractors/` | `IsAuthenticated` + `can_create_contractor` |
-| GET | `/contractors/{id}/` | `IsAuthenticated` + `can_view_contractor` |
-| PUT/PATCH | `/contractors/{id}/` | `IsAuthenticated` + `can_edit_contractor` |
-| DELETE | `/contractors/{id}/` | `IsAuthenticated` + `can_delete_contractor` |
+| GET | `/contractors/` | `IsAuthenticated` + `view_contractor` |
+| POST | `/contractors/` | `IsAuthenticated` + `add_contractor` |
+| GET | `/contractors/{id}/` | `IsAuthenticated` + `view_contractor` |
+| PUT/PATCH | `/contractors/{id}/` | `IsAuthenticated` + `change_contractor` |
+| DELETE | `/contractors/{id}/` | `IsAuthenticated` + `delete_contractor` |
 
 ---
 
@@ -57,11 +57,11 @@ Company-Code: <company_code>
 
 | Method | Endpoint | Permission Required |
 |--------|----------|---------------------|
-| GET | `/visitors/` | `IsAuthenticated` + `can_view_visitor` |
-| POST | `/visitors/` | `IsAuthenticated` + `can_create_visitor` |
-| GET | `/visitors/{id}/` | `IsAuthenticated` + `can_view_visitor` |
-| PUT/PATCH | `/visitors/{id}/` | `IsAuthenticated` + `can_edit_visitor` |
-| DELETE | `/visitors/{id}/` | `IsAuthenticated` + `can_delete_visitor` |
+| GET | `/visitors/` | `IsAuthenticated` + `view_visitor` |
+| POST | `/visitors/` | `IsAuthenticated` + `add_visitor` |
+| GET | `/visitors/{id}/` | `IsAuthenticated` + `view_visitor` |
+| PUT/PATCH | `/visitors/{id}/` | `IsAuthenticated` + `change_visitor` |
+| DELETE | `/visitors/{id}/` | `IsAuthenticated` + `delete_visitor` |
 
 ---
 
@@ -69,11 +69,11 @@ Company-Code: <company_code>
 
 | Method | Endpoint | Permission Required |
 |--------|----------|---------------------|
-| GET | `/labours/` | `IsAuthenticated` + `can_view_labour` |
-| POST | `/labours/` | `IsAuthenticated` + `can_create_labour` |
-| GET | `/labours/{id}/` | `IsAuthenticated` + `can_view_labour` |
-| PUT/PATCH | `/labours/{id}/` | `IsAuthenticated` + `can_edit_labour` |
-| DELETE | `/labours/{id}/` | `IsAuthenticated` + `can_delete_labour` |
+| GET | `/labours/` | `IsAuthenticated` + `view_labour` |
+| POST | `/labours/` | `IsAuthenticated` + `add_labour` |
+| GET | `/labours/{id}/` | `IsAuthenticated` + `view_labour` |
+| PUT/PATCH | `/labours/{id}/` | `IsAuthenticated` + `change_labour` |
+| DELETE | `/labours/{id}/` | `IsAuthenticated` + `delete_labour` |
 
 ---
 
@@ -85,7 +85,7 @@ Company-Code: <company_code>
 POST /entry/create/
 ```
 
-**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `person_gatein.can_create_entry`
+**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `person_gatein.add_entrylog`
 
 ---
 
@@ -95,7 +95,7 @@ POST /entry/create/
 GET /entry/{id}/
 ```
 
-**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `person_gatein.can_view_entry`
+**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `person_gatein.view_entrylog`
 
 ---
 
@@ -125,7 +125,7 @@ POST /entry/{id}/cancel/
 PATCH /entry/{id}/update/
 ```
 
-**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `person_gatein.can_edit_entry`
+**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `person_gatein.change_entrylog`
 
 ---
 
@@ -135,7 +135,7 @@ PATCH /entry/{id}/update/
 GET /entry/inside/
 ```
 
-**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `person_gatein.can_view_entry`
+**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `person_gatein.view_entrylog`
 
 ---
 
@@ -145,7 +145,7 @@ GET /entry/inside/
 GET /entries/
 ```
 
-**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `person_gatein.can_view_entry`
+**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `person_gatein.view_entrylog`
 
 **Query Parameters:** `date`, `start_date`, `end_date`, `status`, `person_type`, `gate_in`, `visitor`, `labour`
 
@@ -171,7 +171,7 @@ GET /entries/search/
 GET /visitor/{visitor_id}/history/
 ```
 
-**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `person_gatein.can_view_entry`
+**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `person_gatein.view_entrylog`
 
 ---
 
@@ -181,7 +181,7 @@ GET /visitor/{visitor_id}/history/
 GET /labour/{labour_id}/history/
 ```
 
-**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `person_gatein.can_view_entry`
+**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `person_gatein.view_entrylog`
 
 ---
 
@@ -191,7 +191,7 @@ GET /labour/{labour_id}/history/
 GET /check-status/?visitor={id} or ?labour={id}
 ```
 
-**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `person_gatein.can_view_entry`
+**Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `person_gatein.view_entrylog`
 
 ---
 
@@ -211,59 +211,59 @@ GET /dashboard/
 
 | Endpoint | Method | Permission Codename |
 |----------|--------|---------------------|
-| `/person-types/` | GET | `can_view_person_type` |
+| `/person-types/` | GET | `view_persontype` |
 | `/person-types/` | POST/PUT/DELETE | `can_manage_person_type` |
-| `/gates/` | GET | `can_view_gate` |
+| `/gates/` | GET | `view_gate` |
 | `/gates/` | POST/PUT/DELETE | `can_manage_gate` |
-| `/contractors/` | GET | `can_view_contractor` |
-| `/contractors/` | POST | `can_create_contractor` |
-| `/contractors/{id}/` | PUT/PATCH | `can_edit_contractor` |
-| `/contractors/{id}/` | DELETE | `can_delete_contractor` |
-| `/visitors/` | GET | `can_view_visitor` |
-| `/visitors/` | POST | `can_create_visitor` |
-| `/visitors/{id}/` | PUT/PATCH | `can_edit_visitor` |
-| `/visitors/{id}/` | DELETE | `can_delete_visitor` |
-| `/labours/` | GET | `can_view_labour` |
-| `/labours/` | POST | `can_create_labour` |
-| `/labours/{id}/` | PUT/PATCH | `can_edit_labour` |
-| `/labours/{id}/` | DELETE | `can_delete_labour` |
-| `/entry/create/` | POST | `can_create_entry` |
-| `/entry/{id}/` | GET | `can_view_entry` |
+| `/contractors/` | GET | `view_contractor` |
+| `/contractors/` | POST | `add_contractor` |
+| `/contractors/{id}/` | PUT/PATCH | `change_contractor` |
+| `/contractors/{id}/` | DELETE | `delete_contractor` |
+| `/visitors/` | GET | `view_visitor` |
+| `/visitors/` | POST | `add_visitor` |
+| `/visitors/{id}/` | PUT/PATCH | `change_visitor` |
+| `/visitors/{id}/` | DELETE | `delete_visitor` |
+| `/labours/` | GET | `view_labour` |
+| `/labours/` | POST | `add_labour` |
+| `/labours/{id}/` | PUT/PATCH | `change_labour` |
+| `/labours/{id}/` | DELETE | `delete_labour` |
+| `/entry/create/` | POST | `add_entrylog` |
+| `/entry/{id}/` | GET | `view_entrylog` |
 | `/entry/{id}/exit/` | POST | `can_exit_entry` |
 | `/entry/{id}/cancel/` | POST | `can_cancel_entry` |
-| `/entry/{id}/update/` | PATCH | `can_edit_entry` |
-| `/entry/inside/` | GET | `can_view_entry` |
-| `/entries/` | GET | `can_view_entry` |
+| `/entry/{id}/update/` | PATCH | `change_entrylog` |
+| `/entry/inside/` | GET | `view_entrylog` |
+| `/entries/` | GET | `view_entrylog` |
 | `/entries/search/` | GET | `can_search_entry` |
-| `/visitor/{id}/history/` | GET | `can_view_entry` |
-| `/labour/{id}/history/` | GET | `can_view_entry` |
-| `/check-status/` | GET | `can_view_entry` |
+| `/visitor/{id}/history/` | GET | `view_entrylog` |
+| `/labour/{id}/history/` | GET | `view_entrylog` |
+| `/check-status/` | GET | `view_entrylog` |
 | `/dashboard/` | GET | `can_view_dashboard` |
 
 ## All Permissions
 
 | Permission Codename | Description |
 |---------------------|-------------|
-| `person_gatein.can_view_person_type` | Can view person type |
+| `person_gatein.view_persontype` | Can view person type |
 | `person_gatein.can_manage_person_type` | Can manage person type |
-| `person_gatein.can_view_gate` | Can view gate |
+| `person_gatein.view_gate` | Can view gate |
 | `person_gatein.can_manage_gate` | Can manage gate |
-| `person_gatein.can_create_contractor` | Can create contractor |
-| `person_gatein.can_view_contractor` | Can view contractor |
-| `person_gatein.can_edit_contractor` | Can edit contractor |
-| `person_gatein.can_delete_contractor` | Can delete contractor |
-| `person_gatein.can_create_visitor` | Can create visitor |
-| `person_gatein.can_view_visitor` | Can view visitor |
-| `person_gatein.can_edit_visitor` | Can edit visitor |
-| `person_gatein.can_delete_visitor` | Can delete visitor |
-| `person_gatein.can_create_labour` | Can create labour |
-| `person_gatein.can_view_labour` | Can view labour |
-| `person_gatein.can_edit_labour` | Can edit labour |
-| `person_gatein.can_delete_labour` | Can delete labour |
-| `person_gatein.can_create_entry` | Can create person gate entry |
-| `person_gatein.can_view_entry` | Can view person gate entry |
-| `person_gatein.can_edit_entry` | Can edit person gate entry |
-| `person_gatein.can_delete_entry` | Can delete person gate entry |
+| `person_gatein.add_contractor` | Can add contractor |
+| `person_gatein.view_contractor` | Can view contractor |
+| `person_gatein.change_contractor` | Can change contractor |
+| `person_gatein.delete_contractor` | Can delete contractor |
+| `person_gatein.add_visitor` | Can add visitor |
+| `person_gatein.view_visitor` | Can view visitor |
+| `person_gatein.change_visitor` | Can change visitor |
+| `person_gatein.delete_visitor` | Can delete visitor |
+| `person_gatein.add_labour` | Can add labour |
+| `person_gatein.view_labour` | Can view labour |
+| `person_gatein.change_labour` | Can change labour |
+| `person_gatein.delete_labour` | Can delete labour |
+| `person_gatein.add_entrylog` | Can add entry log |
+| `person_gatein.view_entrylog` | Can view entry log |
+| `person_gatein.change_entrylog` | Can change entry log |
+| `person_gatein.delete_entrylog` | Can delete entry log |
 | `person_gatein.can_cancel_entry` | Can cancel person gate entry |
 | `person_gatein.can_exit_entry` | Can mark person gate exit |
 | `person_gatein.can_search_entry` | Can search person gate entries |

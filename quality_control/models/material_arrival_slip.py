@@ -71,10 +71,7 @@ class MaterialArrivalSlip(BaseModel):
     class Meta:
         ordering = ["-created_at"]
         permissions = [
-            ("can_create_arrival_slip", "Can create material arrival slip"),
-            ("can_edit_arrival_slip", "Can edit material arrival slip"),
             ("can_submit_arrival_slip", "Can submit arrival slip to QA"),
-            ("can_view_arrival_slip", "Can view material arrival slip"),
         ]
 
     def __str__(self):
