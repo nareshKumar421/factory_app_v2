@@ -52,3 +52,17 @@ class GRPOResponseDTO:
     card_name: Optional[str] = None
     doc_date: Optional[str] = None
     doc_total: Optional[float] = None
+
+
+@dataclass
+class WarehouseDTO:
+    """Active Warehouse from SAP"""
+    warehouse_code: str
+    warehouse_name: str
+
+
+@dataclass
+class VendorDTO:
+    """Active Vendor from SAP"""
+    vendor_code: str
+    vendor_name: str
