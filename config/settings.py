@@ -107,9 +107,9 @@ USE_I18N = True
 USE_TZ = True
 
 # Admin Panel Customization
-ADMIN_SITE_HEADER = '<span style="font-weight: bold; color: #FFD700; text-shadow: 1px 1px 2px #000;">Sampurn</span>'
-ADMIN_SITE_TITLE = "Sampurn"
-ADMIN_INDEX_TITLE = "Sampurn Factory Jivo Wellness Admin"
+ADMIN_SITE_HEADER = 'Sampooran Admin'
+ADMIN_SITE_TITLE = "Sampooran"
+ADMIN_INDEX_TITLE = "Sampooran Factory Jivo Wellness Admin"
 
 # Static files
 STATIC_URL = 'static/'

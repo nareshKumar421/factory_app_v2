@@ -87,11 +87,14 @@ class ReceivePOAPI(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            validate_received_quantity(
-                item_data["ordered_qty"],
-                remaining_qty,
-                received_qty
-            )
+            try:
+                validate_received_quantity(
+                    item_data["ordered_qty"],
+                    remaining_qty,
+                    received_qty
+                )
+            except ValueError as e:
+                return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
             POItemReceipt.objects.create(
                 po_receipt=po_receipt,
@@ -159,6 +162,9 @@ class CompleteGateEntryAPI(APIView):
             id=gate_entry_id,
             company=request.company.company
         )
-        complete_gate_entry(entry)
+        try:
+            complete_gate_entry(entry)
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response({"message": "Gate entry completed successfully"})
 

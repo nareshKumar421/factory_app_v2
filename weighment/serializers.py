@@ -18,6 +18,4 @@ class WeighmentSerializer(serializers.ModelSerializer):
         read_only_fields = (
             "id",
             "net_weight",
-            "first_weighment_time",
-            "second_weighment_time",
         )
