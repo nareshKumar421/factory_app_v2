@@ -189,7 +189,7 @@ Get all departments.
 GET /api/v1/accounts/departments/
 ```
 
-**Permission Required:** `IsAuthenticated` + `accounts.can_view_department`
+**Permission Required:** `IsAuthenticated`
 
 **Headers:**
 ```
@@ -290,7 +290,7 @@ GET/PUT /api/v1/accounts/users/<id>/permissions/
 | `/token/refresh/` | POST | None |
 | `/me/` | GET | IsAuthenticated |
 | `/change-password/` | POST | IsAuthenticated |
-| `/departments/` | GET | IsAuthenticated + can_view_department |
+| `/departments/` | GET | IsAuthenticated |
 | `/users/` | GET | IsAuthenticated + can_view_user |
 | `/users/` | POST | IsAuthenticated + can_create_user |
 | `/users/<id>/` | GET | IsAuthenticated + can_view_user |
