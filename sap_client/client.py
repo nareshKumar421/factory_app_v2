@@ -1,8 +1,10 @@
 from typing import List
 from .context import CompanyContext
 from .hana.po_reader import HanaPOReader
+from .hana.warehouse_reader import HanaWarehouseReader
+from .hana.vendor_reader import HanaVendorReader
 from .service_layer.grpo_writer import GRPOWriter
-from .dtos import PODTO
+from .dtos import PODTO, WarehouseDTO, VendorDTO
 
 
 class SAPClient:
@@ -17,6 +19,14 @@ class SAPClient:
     def get_open_pos(self, supplier_code: str) -> List[PODTO]:
         self.po_reader = HanaPOReader(self.context)
         return self.po_reader.get_open_pos(supplier_code)
+
+    def get_active_warehouses(self) -> List[WarehouseDTO]:
+        reader = HanaWarehouseReader(self.context)
+        return reader.get_active_warehouses()
+
+    def get_active_vendors(self) -> List[VendorDTO]:
+        reader = HanaVendorReader(self.context)
+        return reader.get_active_vendors()
 
     # ---- WRITE ----
     def create_grpo(self, payload: dict):

@@ -8,7 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from company.permissions import HasCompanyContext
 from .client import SAPClient
 from .exceptions import SAPConnectionError, SAPDataError, SAPValidationError
-from .serializers import POSerializer, GRPORequestSerializer, GRPOResponseSerializer
+from .serializers import POSerializer, GRPORequestSerializer, GRPOResponseSerializer, WarehouseSerializer, VendorSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -141,3 +141,57 @@ class CreateGRPOAPI(APIView):
                 {"detail": str(e)},
                 status=status.HTTP_502_BAD_GATEWAY
             )
+
+
+class ActiveWarehouseListAPI(APIView):
+    """
+    Returns list of all active warehouses from SAP
+    """
+    permission_classes = [IsAuthenticated, HasCompanyContext]
+
+    def get(self, request):
+        try:
+            client = SAPClient(company_code=request.company.company.code)
+            warehouses = client.get_active_warehouses()
+        except SAPConnectionError as e:
+            logger.error(f"SAP connection error in ActiveWarehouseListAPI: {e}")
+            return Response(
+                {"detail": "SAP system is currently unavailable. Please try again later."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        except SAPDataError as e:
+            logger.error(f"SAP data error in ActiveWarehouseListAPI: {e}")
+            return Response(
+                {"detail": "Failed to retrieve warehouse data from SAP."},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+
+        serializer = WarehouseSerializer(warehouses, many=True)
+        return Response(serializer.data)
+
+
+class ActiveVendorListAPI(APIView):
+    """
+    Returns list of all active vendors from SAP
+    """
+    permission_classes = [IsAuthenticated, HasCompanyContext]
+
+    def get(self, request):
+        try:
+            client = SAPClient(company_code=request.company.company.code)
+            vendors = client.get_active_vendors()
+        except SAPConnectionError as e:
+            logger.error(f"SAP connection error in ActiveVendorListAPI: {e}")
+            return Response(
+                {"detail": "SAP system is currently unavailable. Please try again later."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        except SAPDataError as e:
+            logger.error(f"SAP data error in ActiveVendorListAPI: {e}")
+            return Response(
+                {"detail": "Failed to retrieve vendor data from SAP."},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+
+        serializer = VendorSerializer(vendors, many=True)
+        return Response(serializer.data)

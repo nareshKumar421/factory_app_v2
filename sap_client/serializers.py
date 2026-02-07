@@ -1,6 +1,16 @@
 from rest_framework import serializers
 
 
+class WarehouseSerializer(serializers.Serializer):
+    warehouse_code = serializers.CharField()
+    warehouse_name = serializers.CharField()
+
+
+class VendorSerializer(serializers.Serializer):
+    vendor_code = serializers.CharField()
+    vendor_name = serializers.CharField()
+
+
 class POItemSerializer(serializers.Serializer):
     po_item_code = serializers.CharField()
     item_name = serializers.CharField()

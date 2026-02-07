@@ -27,3 +27,6 @@ Thumbs.db
 
 # Database tools
 *.sqbpro
+
+# Firebase
+firebase-service-account.json

@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'construction_gatein',
     'person_gatein',
     'grpo',
+    'notifications',  
 ]
 
 MIDDLEWARE = [
@@ -155,3 +156,6 @@ COMPANY_DB = {
     "JIVO_OIL": config('COMPANY_DB_JIVO_OIL'),
     "JIVO_MART": config('COMPANY_DB_JIVO_MART'),
 }
+
+# Firebase Cloud Messaging
+FCM_CREDENTIALS_PATH = config('FCM_CREDENTIALS_PATH', default='firebase-service-account.json')

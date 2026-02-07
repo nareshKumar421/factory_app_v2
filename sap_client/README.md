@@ -52,6 +52,20 @@ COMPANY_DB = {
 | `remaining_qty` | Decimal | Remaining quantity to receive |
 | `uom` | str | Unit of measure |
 
+### Warehouse
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `warehouse_code` | str | Warehouse code (SAP WhsCode) |
+| `warehouse_name` | str | Warehouse name (SAP WhsName) |
+
+### Vendor
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `vendor_code` | str | Vendor/Supplier code (SAP CardCode) |
+| `vendor_name` | str | Vendor/Supplier name (SAP CardName) |
+
 ---
 
 ## API Documentation
@@ -129,7 +143,65 @@ GET /api/v1/po/open-pos/?supplier_code=SUP001
 
 ---
 
-### 2. Get PO Items
+### 2. List Active Warehouses
+
+```
+GET /api/v1/po/warehouses/
+```
+
+**Response (200 OK):**
+```json
+[
+    {
+        "warehouse_code": "WH01",
+        "warehouse_name": "Main Warehouse"
+    },
+    {
+        "warehouse_code": "WH02",
+        "warehouse_name": "Raw Material Store"
+    }
+]
+```
+
+**Error Responses:**
+
+| Status | Message |
+|--------|---------|
+| 502 | `Failed to retrieve warehouse data from SAP` |
+| 503 | `SAP system is currently unavailable` |
+
+---
+
+### 3. List Active Vendors
+
+```
+GET /api/v1/po/vendors/
+```
+
+**Response (200 OK):**
+```json
+[
+    {
+        "vendor_code": "V001",
+        "vendor_name": "ABC Suppliers Pvt Ltd"
+    },
+    {
+        "vendor_code": "V002",
+        "vendor_name": "XYZ Raw Materials Ltd"
+    }
+]
+```
+
+**Error Responses:**
+
+| Status | Message |
+|--------|---------|
+| 502 | `Failed to retrieve vendor data from SAP` |
+| 503 | `SAP system is currently unavailable` |
+
+---
+
+### 4. Get PO Items
 
 ```
 GET /api/v1/po/open-pos/{po_number}/items/
@@ -227,11 +299,19 @@ sap_client/
 ├── __init__.py
 ├── apps.py
 ├── client.py               # SAPClient class
-├── dto.py                  # PO, POItem data classes
+├── dtos.py                 # PO, POItem, Warehouse, Vendor data classes
 ├── exceptions.py           # SAPConnectionError, SAPDataError
-├── serializers.py          # POSerializer, POItemSerializer
+├── serializers.py          # POSerializer, WarehouseSerializer, VendorSerializer
 ├── views.py                # API views
 ├── urls.py                 # URL routing
+├── hana/
+│   ├── connection.py       # HANA database connection
+│   ├── po_reader.py        # PO queries
+│   ├── warehouse_reader.py # Warehouse queries
+│   └── vendor_reader.py    # Vendor queries
+├── service_layer/
+│   ├── auth.py             # Service Layer authentication
+│   └── grpo_writer.py      # GRPO creation
 └── migrations/
 ```
 
@@ -248,6 +328,8 @@ from sap_client.exceptions import SAPConnectionError, SAPDataError
 try:
     client = SAPClient(company_code="JIVO_OIL")
     po_list = client.get_open_pos(supplier_code="SUP001")
+    warehouses = client.get_active_warehouses()
+    vendors = client.get_active_vendors()
 except SAPConnectionError:
     # Handle connection failure
 except SAPDataError:
