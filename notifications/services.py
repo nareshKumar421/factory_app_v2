@@ -74,6 +74,19 @@ class NotificationService:
         if click_action_url:
             fcm_data["click_action_url"] = click_action_url
 
+        webpush_kwargs = {
+            "notification": messaging.WebpushNotification(
+                title=title,
+                body=body,
+                icon="/icons/notification-icon.png",
+            ),
+        }
+
+        if click_action_url and click_action_url.startswith("https://"):
+            webpush_kwargs["fcm_options"] = messaging.WebpushFCMOptions(
+                link=click_action_url,
+            )
+
         return messaging.Message(
             notification=messaging.Notification(
                 title=title,
@@ -81,16 +94,7 @@ class NotificationService:
             ),
             data=fcm_data,
             token=token,
-            webpush=messaging.WebpushConfig(
-                fcm_options=messaging.WebpushFCMOptions(
-                    link=click_action_url or "/"
-                ),
-                notification=messaging.WebpushNotification(
-                    title=title,
-                    body=body,
-                    icon="/icons/notification-icon.png",
-                ),
-            ),
+            webpush=messaging.WebpushConfig(**webpush_kwargs),
         )
 
     @classmethod
