@@ -142,7 +142,7 @@ class NotificationService:
         reference_id: int = None,
         company=None,
         extra_data: dict = None,
-        created_by=None,
+        created_by=None, 
     ) -> Notification:
         """
         Send notification to a specific user on all their devices.
@@ -254,6 +254,95 @@ class NotificationService:
             notification_type=notification_type,
             click_action_url=click_action_url,
             company=company,
+            created_by=created_by,
+        )
+        return len(notifications)
+
+    @classmethod
+    def send_notification_by_permission(
+        cls,
+        permission_codename: str,
+        title: str,
+        body: str,
+        notification_type: str = NotificationType.GENERAL_ANNOUNCEMENT,
+        click_action_url: str = "",
+        company=None,
+        extra_data: dict = None,
+        created_by=None,
+    ) -> int:
+        """
+        Send notification to all active users who have a specific permission.
+        Permission can be assigned directly or via a group.
+        """
+        from django.contrib.auth import get_user_model
+        from django.db.models import Q
+
+        User = get_user_model()
+
+        users = User.objects.filter(
+            Q(user_permissions__codename=permission_codename) |
+            Q(groups__permissions__codename=permission_codename),
+            is_active=True,
+        ).distinct()
+
+        if company:
+            from company.models import UserCompany
+            company_user_ids = UserCompany.objects.filter(
+                company=company, is_active=True
+            ).values_list("user_id", flat=True)
+            users = users.filter(id__in=company_user_ids)
+
+        notifications = cls.send_notification_to_group(
+            users=users,
+            title=title,
+            body=body,
+            notification_type=notification_type,
+            click_action_url=click_action_url,
+            company=company,
+            extra_data=extra_data,
+            created_by=created_by,
+        )
+        return len(notifications)
+
+    @classmethod
+    def send_notification_by_auth_group(
+        cls,
+        group_name: str,
+        title: str,
+        body: str,
+        notification_type: str = NotificationType.GENERAL_ANNOUNCEMENT,
+        click_action_url: str = "",
+        company=None,
+        extra_data: dict = None,
+        created_by=None,
+    ) -> int:
+        """
+        Send notification to all active users in a Django auth group.
+        """
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+
+        users = User.objects.filter(
+            groups__name=group_name,
+            is_active=True,
+        ).distinct()
+
+        if company:
+            from company.models import UserCompany
+            company_user_ids = UserCompany.objects.filter(
+                company=company, is_active=True
+            ).values_list("user_id", flat=True)
+            users = users.filter(id__in=company_user_ids)
+
+        notifications = cls.send_notification_to_group(
+            users=users,
+            title=title,
+            body=body,
+            notification_type=notification_type,
+            click_action_url=click_action_url,
+            company=company,
+            extra_data=extra_data,
             created_by=created_by,
         )
         return len(notifications)

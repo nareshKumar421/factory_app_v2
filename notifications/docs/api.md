@@ -317,6 +317,116 @@ Content-Type: application/json
 
 ---
 
+## 7. Send Notification by Permission
+
+Send notification to all users who have a specific Django permission (directly or via group). Scoped to the company from `Company-Code` header.
+
+- **URL**: `POST /api/v1/notifications/send-by-permission/`
+- **Auth**: `Bearer <access_token>`
+- **Headers**: `Company-Code: <code>` (required)
+- **Permission**: `IsAuthenticated` + `HasCompanyContext` + `CanSendBulkNotification`
+
+### Request Body
+
+| Field                 | Type   | Required | Default                | Description                                        |
+|-----------------------|--------|----------|------------------------|----------------------------------------------------|
+| `permission_codename` | string | Yes      | -                      | Django permission codename (e.g., `can_send_notification`) |
+| `title`               | string | Yes      | -                      | Notification title                                 |
+| `body`                | string | Yes      | -                      | Notification body text                             |
+| `notification_type`   | string | No       | `GENERAL_ANNOUNCEMENT` | See notification types below                       |
+| `click_action_url`    | string | No       | `""`                   | Frontend route for click redirect                  |
+
+### Example — Notify all users with GRPO view permission
+
+```json
+POST /api/v1/notifications/send-by-permission/
+Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOi...
+Company-Code: JIVO_OIL
+Content-Type: application/json
+
+{
+    "permission_codename": "view_grpoposting",
+    "title": "GRPO Batch Complete",
+    "body": "All pending GRPO postings have been processed.",
+    "notification_type": "GENERAL_ANNOUNCEMENT",
+    "click_action_url": "/grpo"
+}
+```
+
+### Success Response — `200 OK`
+
+```json
+{
+    "message": "Notification sent to 8 users with permission 'view_grpoposting'",
+    "recipients_count": 8
+}
+```
+
+---
+
+## 8. Send Notification by Group
+
+Send notification to all users in a specific Django auth group. Scoped to the company from `Company-Code` header.
+
+- **URL**: `POST /api/v1/notifications/send-by-group/`
+- **Auth**: `Bearer <access_token>`
+- **Headers**: `Company-Code: <code>` (required)
+- **Permission**: `IsAuthenticated` + `HasCompanyContext` + `CanSendBulkNotification`
+
+### Request Body
+
+| Field              | Type   | Required | Default                | Description                                   |
+|--------------------|--------|----------|------------------------|-----------------------------------------------|
+| `group_name`       | string | Yes      | -                      | Django auth group name (e.g., `grpo`, `quality_control`) |
+| `title`            | string | Yes      | -                      | Notification title                            |
+| `body`             | string | Yes      | -                      | Notification body text                        |
+| `notification_type`| string | No       | `GENERAL_ANNOUNCEMENT` | See notification types below                  |
+| `click_action_url` | string | No       | `""`                   | Frontend route for click redirect             |
+
+### Example — Notify all QC group users
+
+```json
+POST /api/v1/notifications/send-by-group/
+Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOi...
+Company-Code: JIVO_OIL
+Content-Type: application/json
+
+{
+    "group_name": "quality_control",
+    "title": "QC Report Due",
+    "body": "All pending inspections must be completed by EOD today.",
+    "notification_type": "GENERAL_ANNOUNCEMENT",
+    "click_action_url": "/quality-control"
+}
+```
+
+### Example — Notify all GRPO group users
+
+```json
+POST /api/v1/notifications/send-by-group/
+Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOi...
+Company-Code: JIVO_OIL
+Content-Type: application/json
+
+{
+    "group_name": "grpo",
+    "title": "SAP Sync Complete",
+    "body": "All GRPO postings synced with SAP successfully.",
+    "click_action_url": "/grpo"
+}
+```
+
+### Success Response — `200 OK`
+
+```json
+{
+    "message": "Notification sent to 5 users in group 'quality_control'",
+    "recipients_count": 5
+}
+```
+
+---
+
 ## Notification Types
 
 | Type                        | Description                  | Auto-Triggered |
