@@ -6,6 +6,8 @@ from .views import (
     NotificationMarkReadAPI,
     NotificationUnreadCountAPI,
     SendNotificationAPI,
+    SendByPermissionAPI,
+    SendByGroupAPI,
 )
 
 urlpatterns = [
@@ -20,4 +22,6 @@ urlpatterns = [
 
     # Admin sending
     path("send/", SendNotificationAPI.as_view(), name="notification-send"),
+    path("send-by-permission/", SendByPermissionAPI.as_view(), name="notification-send-by-permission"),
+    path("send-by-group/", SendByGroupAPI.as_view(), name="notification-send-by-group"),
 ]

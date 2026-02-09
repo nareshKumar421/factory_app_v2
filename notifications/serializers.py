@@ -59,3 +59,25 @@ class SendNotificationSerializer(serializers.Serializer):
         default="",
         help_text="Filter recipients by role name"
     )
+
+
+class SendByPermissionSerializer(serializers.Serializer):
+    permission_codename = serializers.CharField(
+        max_length=255,
+        help_text="Permission codename (e.g., 'can_send_notification')"
+    )
+    title = serializers.CharField(max_length=255)
+    body = serializers.CharField()
+    notification_type = serializers.CharField(default="GENERAL_ANNOUNCEMENT")
+    click_action_url = serializers.CharField(required=False, allow_blank=True, default="")
+
+
+class SendByGroupSerializer(serializers.Serializer):
+    group_name = serializers.CharField(
+        max_length=150,
+        help_text="Django auth group name (e.g., 'grpo', 'quality_control')"
+    )
+    title = serializers.CharField(max_length=255)
+    body = serializers.CharField()
+    notification_type = serializers.CharField(default="GENERAL_ANNOUNCEMENT")
+    click_action_url = serializers.CharField(required=False, allow_blank=True, default="")

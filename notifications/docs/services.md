@@ -141,6 +141,72 @@ count = NotificationService.send_bulk_notification(
 
 ---
 
+### send_notification_by_permission()
+
+Send notification to all active users who have a specific Django permission (directly or via group).
+
+```python
+count = NotificationService.send_notification_by_permission(
+    permission_codename="view_grpoposting",
+    title="GRPO Batch Complete",
+    body="All pending GRPO postings have been processed.",
+    notification_type="GENERAL_ANNOUNCEMENT",
+    click_action_url="/grpo",
+    company=company_instance,      # optional — scope to company
+    extra_data={"batch_id": "42"}, # optional
+    created_by=admin_user,         # optional
+)
+# Returns count of recipients
+```
+
+**Behavior:**
+1. Queries all active users who have the permission via `user_permissions` **or** via `groups__permissions`
+2. Uses `.distinct()` to avoid duplicates (user could have the permission both directly and via group)
+3. If `company` is provided, further filters to users with an active `UserCompany` record in that company
+4. Calls `send_notification_to_group()` for the filtered user list
+
+**Finding permission codenames:**
+```python
+from django.contrib.auth.models import Permission
+Permission.objects.filter(content_type__app_label="grpo").values_list("codename", flat=True)
+# ['add_grpoposting', 'change_grpoposting', 'delete_grpoposting', 'view_grpoposting']
+```
+
+---
+
+### send_notification_by_auth_group()
+
+Send notification to all active users in a Django auth group.
+
+```python
+count = NotificationService.send_notification_by_auth_group(
+    group_name="quality_control",
+    title="QC Report Due",
+    body="All pending inspections must be completed by EOD.",
+    notification_type="GENERAL_ANNOUNCEMENT",
+    click_action_url="/quality-control",
+    company=company_instance,      # optional — scope to company
+    extra_data={"key": "value"},   # optional
+    created_by=admin_user,         # optional
+)
+# Returns count of recipients
+```
+
+**Behavior:**
+1. Queries all active users in the specified Django auth group by `groups__name`
+2. Uses `.distinct()` to avoid duplicates
+3. If `company` is provided, further filters to users with an active `UserCompany` record in that company
+4. Calls `send_notification_to_group()` for the filtered user list
+
+**Available groups in this project:**
+```python
+from django.contrib.auth.models import Group
+Group.objects.values_list("name", flat=True)
+# ['grpo', 'quality_control', 'raw_material_gatein', 'Notification Sender', ...]
+```
+
+---
+
 ## FCM Message Structure
 
 Every push notification sent to a device contains:

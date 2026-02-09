@@ -7,7 +7,7 @@
 | Class                    | Code                                        | Used In             |
 |--------------------------|---------------------------------------------|---------------------|
 | `CanSendNotification`    | `notifications.can_send_notification`        | `SendNotificationAPI` |
-| `CanSendBulkNotification`| `notifications.can_send_bulk_notification`   | (reserved for future) |
+| `CanSendBulkNotification`| `notifications.can_send_bulk_notification`   | `SendByPermissionAPI`, `SendByGroupAPI` |
 
 ---
 
@@ -21,6 +21,8 @@
 | `/mark-read/`                     | POST   | `IsAuthenticated`                                                |
 | `/unread-count/`                  | GET    | `IsAuthenticated`                                                |
 | `/send/`                          | POST   | `IsAuthenticated` + `HasCompanyContext` + `CanSendNotification`  |
+| `/send-by-permission/`            | POST   | `IsAuthenticated` + `HasCompanyContext` + `CanSendBulkNotification` |
+| `/send-by-group/`                 | POST   | `IsAuthenticated` + `HasCompanyContext` + `CanSendBulkNotification` |
 
 ---
 
@@ -42,7 +44,7 @@
 
 ### CanSendBulkNotification
 - Django permission: `notifications.can_send_bulk_notification`
-- Reserved for future bulk operations that need separate access control.
+- Required for the `/send-by-permission/` and `/send-by-group/` endpoints.
 - Also assigned via the **"Notification Sender"** group.
 
 ---
@@ -123,4 +125,5 @@ These default permissions are used by Django Admin only. API access is controlle
 | Mark their own notifications read| Any authenticated user               |
 | Get their own unread count       | Any authenticated user               |
 | Send manual notification         | Users with `can_send_notification`   |
+| Send by permission / group       | Users with `can_send_bulk_notification` |
 | Auto-triggered notifications     | System (via signals, no permission needed) |

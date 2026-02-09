@@ -16,13 +16,15 @@ from .serializers import (
     NotificationSerializer,
     NotificationMarkReadSerializer,
     SendNotificationSerializer,
+    SendByPermissionSerializer,
+    SendByGroupSerializer,
 )
-from .permissions import CanSendNotification
+from .permissions import CanSendNotification, CanSendBulkNotification
 
 logger = logging.getLogger(__name__)
 
 
-class DeviceRegisterAPI(APIView):
+class DeviceRegisterAPI(APIView): 
     """
     Register FCM device token for the authenticated user.
     POST /api/v1/notifications/devices/register/
@@ -209,5 +211,67 @@ class SendNotificationAPI(APIView):
 
         return Response({
             "message": f"Notification sent to {count} users",
+            "recipients_count": count,
+        })
+
+
+class SendByPermissionAPI(APIView):
+    """
+    Send notification to all users who have a specific permission.
+    POST /api/v1/notifications/send-by-permission/
+    Requires: notifications.can_send_bulk_notification permission.
+    """
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanSendBulkNotification]
+
+    def post(self, request):
+        serializer = SendByPermissionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        data = serializer.validated_data
+        company = request.company.company
+
+        count = NotificationService.send_notification_by_permission(
+            permission_codename=data["permission_codename"],
+            title=data["title"],
+            body=data["body"],
+            notification_type=data.get("notification_type", "GENERAL_ANNOUNCEMENT"),
+            click_action_url=data.get("click_action_url", ""),
+            company=company,
+            created_by=request.user,
+        )
+
+        return Response({
+            "message": f"Notification sent to {count} users with permission '{data['permission_codename']}'",
+            "recipients_count": count,
+        })
+
+
+class SendByGroupAPI(APIView):
+    """
+    Send notification to all users in a Django auth group.
+    POST /api/v1/notifications/send-by-group/
+    Requires: notifications.can_send_bulk_notification permission.
+    """
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanSendBulkNotification]
+
+    def post(self, request):
+        serializer = SendByGroupSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        data = serializer.validated_data
+        company = request.company.company
+
+        count = NotificationService.send_notification_by_auth_group(
+            group_name=data["group_name"],
+            title=data["title"],
+            body=data["body"],
+            notification_type=data.get("notification_type", "GENERAL_ANNOUNCEMENT"),
+            click_action_url=data.get("click_action_url", ""),
+            company=company,
+            created_by=request.user,
+        )
+
+        return Response({
+            "message": f"Notification sent to {count} users in group '{data['group_name']}'",
             "recipients_count": count,
         })
