@@ -7,9 +7,9 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-from .serializers import ChangePasswordSerializer, LoginSerializer, MeSerializer
+from .serializers import ChangePasswordSerializer, LoginSerializer, MeSerializer, UserSerializer
 
-from .models import Department
+from .models import Department, User
 from .serializers import DepartmentSerializer
 
 logger = logging.getLogger(__name__)
@@ -82,3 +82,13 @@ class DepartmentListView(APIView):
         departments = Department.objects.all()
         serializer = DepartmentSerializer(departments, many=True)
         return Response(serializer.data)
+    
+
+class UserListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        users = User.objects.all()
+        serializer = UserSerializer(users, many=True)
+        return Response(serializer.data)
+    

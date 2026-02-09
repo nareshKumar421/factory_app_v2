@@ -104,4 +104,18 @@ class DepartmentSerializer(serializers.ModelSerializer):
         model = Department
         fields = "__all__"
 
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "email",
+            "full_name",
+            "employee_code",
+            "is_active",
+            "is_staff",
+            "date_joined",
+        ]
+
     

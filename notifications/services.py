@@ -70,31 +70,23 @@ class NotificationService:
     def _build_fcm_message(token: str, title: str, body: str,
                            data: Dict[str, str] = None,
                            click_action_url: str = "") -> messaging.Message:
-        fcm_data = data or {}
-        if click_action_url:
-            fcm_data["click_action_url"] = click_action_url
-
-        webpush_kwargs = {
-            "notification": messaging.WebpushNotification(
-                title=title,
-                body=body,
-                icon="/icons/notification-icon.png",
-            ),
+        """
+        Build a DATA-ONLY FCM message.
+        No notification/webpush fields — the service worker controls display.
+        """
+        fcm_data = {
+            "title": title,
+            "body": body,
+            "url": click_action_url or "/",
+            **(data or {}),
         }
 
-        if click_action_url and click_action_url.startswith("https://"):
-            webpush_kwargs["fcm_options"] = messaging.WebpushFCMOptions(
-                link=click_action_url,
-            )
+        # FCM requires all data values to be strings
+        fcm_data = {k: str(v) for k, v in fcm_data.items() if v is not None}
 
         return messaging.Message(
-            notification=messaging.Notification(
-                title=title,
-                body=body,
-            ),
-            data=fcm_data,
             token=token,
-            webpush=messaging.WebpushConfig(**webpush_kwargs),
+            data=fcm_data,
         )
 
     @classmethod
