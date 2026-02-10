@@ -4,6 +4,14 @@ from driver_management.models import VehicleEntry
 from driver_management.serializers import DriverSerializer
 from company.serializers import CompanySerializer
 
+class VehicleTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = VehicleType
+        fields = [
+            "id",
+            "name",
+        ]
+        read_only_fields = ("id",)
 
 class TransporterSerializer(serializers.ModelSerializer):
     class Meta:
@@ -42,6 +50,7 @@ class VehicleSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         representation = super().to_representation(instance)
         representation["transporter"] = TransporterSerializer(instance.transporter).data
+        representation["vehicle_type"] = VehicleTypeSerializer(instance.vehicle_type).data
         return representation
     
 class VehicleNameSerializer(serializers.ModelSerializer):
@@ -83,11 +92,3 @@ class VehicleEntrySerializer(serializers.ModelSerializer):
         return representation
     
 
-class VehicleTypeSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = VehicleType
-        fields = [
-            "id",
-            "name",
-        ]
-        read_only_fields = ("id",)

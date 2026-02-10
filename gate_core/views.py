@@ -125,7 +125,7 @@ class RawMaterialGateEntryFullView(APIView):
             "vehicle": {
                 "id": entry.vehicle.id,
                 "vehicle_number": entry.vehicle.vehicle_number,
-                "vehicle_type": entry.vehicle.vehicle_type,
+                "vehicle_type": entry.vehicle.vehicle_type.name if entry.vehicle.vehicle_type else None,
                 "capacity_ton": float(entry.vehicle.capacity_ton) if entry.vehicle.capacity_ton else None,
             },
 

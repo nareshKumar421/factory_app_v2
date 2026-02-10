@@ -12,7 +12,12 @@ class VehicleType(BaseModel):
 
 class Vehicle(BaseModel):
     vehicle_number = models.CharField(max_length=20, unique=True)
-    vehicle_type = models.CharField(max_length=50)
+    vehicle_type = models.ForeignKey(
+        VehicleType,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
     transporter = models.ForeignKey(
         Transporter,
         on_delete=models.SET_NULL,
