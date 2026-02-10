@@ -14,6 +14,20 @@ from .permissions import (
     CanViewMaintenanceFullEntry,
     CanViewConstructionFullEntry,
 )
+from .models import UnitChoice
+from .serializers import UnitChoiceSerializer
+
+
+class UnitChoiceListView(APIView):
+    """
+    API view to list all unit choices
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        units = UnitChoice.objects.all()
+        serializer = UnitChoiceSerializer(units, many=True)
+        return Response(serializer.data)
 
 class RawMaterialGateEntryFullView(APIView):
     """

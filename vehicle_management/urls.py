@@ -10,6 +10,7 @@ from vehicle_management.views import (
     VehicleEntryCountAPI,
     VehicleEntryListByStatus,
     VehicleNameListAPI,
+    VehicleTypeListAPI,
 )
 
 urlpatterns = [
@@ -29,5 +30,6 @@ urlpatterns = [
     path("vehicle-entries/count/", VehicleEntryCountAPI.as_view()),
     path("vehicle-entries/list-by-status/", VehicleEntryListByStatus.as_view()),
 
+    path("vehicle-types/", VehicleTypeListAPI.as_view()),
 
 ]

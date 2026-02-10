@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Transporter,Vehicle
+from .models import Transporter,Vehicle, VehicleType
 from driver_management.models import VehicleEntry
 from driver_management.serializers import DriverSerializer
 from company.serializers import CompanySerializer
@@ -81,3 +81,13 @@ class VehicleEntrySerializer(serializers.ModelSerializer):
         representation["driver"] = DriverSerializer(instance.driver, context={"request": self.context.get("request")}).data
         representation["company"] = CompanySerializer(instance.company).data
         return representation
+    
+
+class VehicleTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = VehicleType
+        fields = [
+            "id",
+            "name",
+        ]
+        read_only_fields = ("id",)

@@ -4,18 +4,15 @@ from gate_core.models import BaseModel
 from .transporter import Transporter
 
 
+class VehicleType(BaseModel):
+    name = models.CharField(max_length=50, unique=True)
+
+    def __str__(self):
+        return self.name
 
 class Vehicle(BaseModel):
-
-    VEHICLE_TYPES = (
-        ("TRUCK", "Truck"),
-        ("TEMPO", "Tempo"),
-        ("CONTAINER", "Container"),
-        ("TRACTOR", "Tractor"),
-    )
-
     vehicle_number = models.CharField(max_length=20, unique=True)
-    vehicle_type = models.CharField(max_length=20, choices=VEHICLE_TYPES)
+    vehicle_type = models.CharField(max_length=50)
     transporter = models.ForeignKey(
         Transporter,
         on_delete=models.SET_NULL,

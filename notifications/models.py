@@ -49,6 +49,8 @@ class NotificationType(models.TextChoices):
     QC_QAM_APPROVED = "QC_QAM_APPROVED", "QC QAM Approved"
     QC_REJECTED = "QC_REJECTED", "QC Rejected"
     QC_COMPLETED = "QC_COMPLETED", "QC Completed"
+    PO_RECEIVED = "PO_RECEIVED", "PO Items Received"
+    GATE_ENTRY_COMPLETED = "GATE_ENTRY_COMPLETED", "Gate Entry Completed"
     GRPO_POSTED = "GRPO_POSTED", "GRPO Posted to SAP"
     GRPO_FAILED = "GRPO_FAILED", "GRPO Posting Failed"
     GENERAL_ANNOUNCEMENT = "GENERAL_ANNOUNCEMENT", "General Announcement"
