@@ -354,7 +354,7 @@ class DailyNeedGateEntryFullView(APIView):
             # -----------------------
             "vehicle": {
                 "vehicle_number": entry.vehicle.vehicle_number,
-                "vehicle_type": entry.vehicle.vehicle_type,
+                "vehicle_type": entry.vehicle.vehicle_type.name if entry.vehicle.vehicle_type else None,
                 "capacity_ton": entry.vehicle.capacity_ton,
             },
 
@@ -475,7 +475,7 @@ class MaintenanceGateEntryFullView(APIView):
             # -----------------------
             "vehicle": {
                 "vehicle_number": entry.vehicle.vehicle_number,
-                "vehicle_type": entry.vehicle.vehicle_type,
+                "vehicle_type": entry.vehicle.vehicle_type.name if entry.vehicle.vehicle_type else None,
                 "capacity_ton": entry.vehicle.capacity_ton,
             },
 
@@ -596,7 +596,7 @@ class ConstructionGateEntryFullView(APIView):
             # -----------------------
             "vehicle": {
                 "vehicle_number": entry.vehicle.vehicle_number,
-                "vehicle_type": entry.vehicle.vehicle_type,
+                "vehicle_type": entry.vehicle.vehicle_type.name if entry.vehicle.vehicle_type else None,
                 "capacity_ton": entry.vehicle.capacity_ton,
             },
 
