@@ -402,7 +402,7 @@ class DailyNeedGateEntryFullView(APIView):
                 "supplier_name": daily.supplier_name,
                 "material_name": daily.material_name,
                 "quantity": float(daily.quantity),
-                "unit": daily.unit,
+                "unit": daily.unit.name if daily.unit else None,
                 "receiving_department": daily.receiving_department.name,
 
                 "bill_number": daily.bill_number,
@@ -526,7 +526,7 @@ class MaintenanceGateEntryFullView(APIView):
                 "material_description": maintenance.material_description,
                 "part_number": maintenance.part_number,
                 "quantity": float(maintenance.quantity),
-                "unit": maintenance.unit,
+                "unit": maintenance.unit.name if maintenance.unit else None,
                 "invoice_number": maintenance.invoice_number,
                 "equipment_id": maintenance.equipment_id,
                 "receiving_department": (
@@ -648,7 +648,7 @@ class ConstructionGateEntryFullView(APIView):
                 "contractor_contact": construction.contractor_contact,
                 "material_description": construction.material_description,
                 "quantity": float(construction.quantity),
-                "unit": construction.unit,
+                "unit": construction.unit.name if construction.unit else None,
                 "challan_number": construction.challan_number,
                 "invoice_number": construction.invoice_number,
                 "site_engineer": construction.site_engineer,

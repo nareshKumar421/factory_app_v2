@@ -7,6 +7,7 @@ from django.core.validators import MinValueValidator
 from django.core.exceptions import ValidationError
 from driver_management.models import VehicleEntry
 from accounts.models import Department
+from gate_core.models import UnitChoice
 
 
 def validate_phone_number(value):
@@ -33,14 +34,6 @@ class CategoryList(models.Model):
 
 class DailyNeedGateEntry(models.Model):
 
-
-    UNIT_CHOICES = (
-        ("PCS", "Pieces"),
-        ("KG", "Kilogram"),
-        ("LTR", "Litre"),
-        ("BOX", "Box"),
-    )
-
     # Parent
     vehicle_entry = models.OneToOneField(
         VehicleEntry,
@@ -66,7 +59,12 @@ class DailyNeedGateEntry(models.Model):
         decimal_places=2,
         validators=[MinValueValidator(Decimal("0.01"), message="Quantity must be positive")]
     )
-    unit = models.CharField(max_length=10, choices=UNIT_CHOICES)
+    unit = models.ForeignKey(
+        UnitChoice,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="daily_need_entries"
+    )
 
     receiving_department = models.ForeignKey(
         Department,
