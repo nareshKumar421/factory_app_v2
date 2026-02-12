@@ -170,11 +170,12 @@ class VehicleAdmin(admin.ModelAdmin):
             "CONTAINER": "#9b59b6",
             "TRACTOR": "#f39c12",
         }
-        color = colors.get(obj.vehicle_type, "#95a5a6")
+        vtype_name = str(obj.vehicle_type) if obj.vehicle_type else "-"
+        color = colors.get(vtype_name.upper(), "#95a5a6")
         return format_html(
             '<span style="background-color: {}; color: white; padding: 3px 8px; '
             'border-radius: 4px; font-size: 11px;">{}</span>',
-            color, obj.get_vehicle_type_display()
+            color, vtype_name
         )
 
     @admin.display(description="Transporter", ordering="transporter__name")

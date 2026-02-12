@@ -14,8 +14,33 @@ from .permissions import (
     CanViewMaintenanceFullEntry,
     CanViewConstructionFullEntry,
 )
-from .models import UnitChoice
+from .models import UnitChoice, GateAttachment
 from .serializers import UnitChoiceSerializer
+from .serializers import GateAttachmentSerializer
+
+class GateAttachmentListCreateView(APIView):
+    """
+    API view to list and create gate attachments for a specific gate entry
+    """
+    permission_classes = [IsAuthenticated, HasCompanyContext]
+
+    def get(self, request, gate_entry_id):
+        attachments = GateAttachment.objects.filter(gate_entry_id=gate_entry_id)
+        serializer = GateAttachmentSerializer(attachments, many=True)
+        return Response(serializer.data)
+
+    def post(self, request, gate_entry_id):
+        # Validate that the gate entry exists and belongs to the company
+        try:
+            entry = VehicleEntry.objects.get(id=gate_entry_id, company=request.company.company)
+        except VehicleEntry.DoesNotExist:
+            raise NotFound("Gate entry not found")
+
+        serializer = GateAttachmentSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save(gate_entry=entry)
+
+        return Response(serializer.data, status=201)
 
 
 class UnitChoiceListView(APIView):

@@ -5,11 +5,15 @@ from .views import (
     MaintenanceGateEntryFullView,
     ConstructionGateEntryFullView,
     UnitChoiceListView,
+    GateAttachmentListCreateView,
 )
 
 urlpatterns = [
     # Unit Choice URLs
     path('unit-choices/', UnitChoiceListView.as_view(), name='unit_choice_list'),
+
+    # Gate Attachment URLs
+    path('gate-attachments/<int:gate_entry_id>/', GateAttachmentListCreateView.as_view(), name='gate_attachment_list_create'),
 
     # Gate Entry URLs
     path('raw-material-gate-entry/<int:gate_entry_id>/', RawMaterialGateEntryFullView.as_view(), name='raw_material_gate_entry_full_view'),

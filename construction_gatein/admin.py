@@ -166,11 +166,12 @@ class ConstructionGateEntryAdmin(admin.ModelAdmin):
             "LTR": "#9b59b6",
             "BOX": "#f39c12",
         }
-        color = colors.get(obj.unit, "#95a5a6")
+        unit_name = str(obj.unit) if obj.unit else "-"
+        color = colors.get(unit_name.upper(), "#95a5a6")
         return format_html(
             '<span style="background-color: {}; color: white; padding: 2px 6px; '
             'border-radius: 4px; font-size: 11px;">{}</span>',
-            color, obj.get_unit_display()
+            color, unit_name
         )
 
     @admin.display(description="Approval", ordering="security_approval")
