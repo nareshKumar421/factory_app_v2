@@ -23,6 +23,12 @@ from .views import (
     InspectionApproveChemistAPI,
     InspectionApproveQAMAPI,
     InspectionRejectAPI,
+    # Inspection List APIs (Status-Based)
+    InspectionListAPI,
+    InspectionAwaitingChemistAPI,
+    InspectionAwaitingQAMAPI,
+    InspectionCompletedAPI,
+    InspectionRejectedAPI,
 )
 
 urlpatterns = [
@@ -51,25 +57,21 @@ urlpatterns = [
     ),
 
     # ==================== Material Arrival Slip APIs ====================
-    # List all arrival slips
     path(
         "arrival-slips/",
         ArrivalSlipListAPI.as_view(),
         name="arrival-slip-list"
     ),
-    # Create/update arrival slip for a PO item
     path(
         "po-items/<int:po_item_id>/arrival-slip/",
         ArrivalSlipCreateUpdateAPI.as_view(),
         name="arrival-slip-create-update"
     ),
-    # Get arrival slip by ID
     path(
         "arrival-slips/<int:slip_id>/",
         ArrivalSlipDetailAPI.as_view(),
         name="arrival-slip-detail"
     ),
-    # Submit arrival slip to QA
     path(
         "arrival-slips/<int:slip_id>/submit/",
         ArrivalSlipSubmitAPI.as_view(),
@@ -77,11 +79,37 @@ urlpatterns = [
     ),
 
     # ==================== Raw Material Inspection APIs ====================
-    # List pending arrival slips for QA inspection
+    # List all inspections (with optional filters)
+    path(
+        "inspections/",
+        InspectionListAPI.as_view(),
+        name="inspection-list"
+    ),
+    # List by workflow stage
     path(
         "inspections/pending/",
         InspectionPendingListAPI.as_view(),
         name="inspection-pending-list"
+    ),
+    path(
+        "inspections/awaiting-chemist/",
+        InspectionAwaitingChemistAPI.as_view(),
+        name="inspection-awaiting-chemist"
+    ),
+    path(
+        "inspections/awaiting-qam/",
+        InspectionAwaitingQAMAPI.as_view(),
+        name="inspection-awaiting-qam"
+    ),
+    path(
+        "inspections/completed/",
+        InspectionCompletedAPI.as_view(),
+        name="inspection-completed"
+    ),
+    path(
+        "inspections/rejected/",
+        InspectionRejectedAPI.as_view(),
+        name="inspection-rejected"
     ),
     # Create/update inspection for an arrival slip
     path(
@@ -89,7 +117,7 @@ urlpatterns = [
         InspectionCreateUpdateAPI.as_view(),
         name="inspection-create-update"
     ),
-    # Get inspection by ID
+    # Get inspection by ID (must be after named paths)
     path(
         "inspections/<int:inspection_id>/",
         InspectionDetailAPI.as_view(),
