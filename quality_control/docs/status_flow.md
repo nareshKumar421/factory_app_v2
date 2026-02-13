@@ -249,3 +249,73 @@ All endpoints require: `IsAuthenticated`, `HasCompanyContext`, and the relevant 
 | `can_approve_as_chemist`    | QA Chemist        | Approve/review inspection      |
 | `can_approve_as_qam`        | QA Manager        | Final approval with decision   |
 | `can_reject_inspection`     | QA Chemist / QAM  | Reject inspection              |
+
+---
+
+## 10. Notifications (Django Signals)
+
+Push notifications are sent automatically via Django `post_save` signals defined in
+`quality_control/signals.py`. Notifications are delivered using FCM (Firebase Cloud Messaging)
+to all active devices of users in the target auth group, scoped to the same company.
+
+### Signal: `notify_arrival_slip_submitted`
+
+**Trigger:** `MaterialArrivalSlip` saved with `is_submitted=True` and `status=SUBMITTED`
+
+| Target Group | Notification Type           | Title                    |
+|--------------|-----------------------------|--------------------------|
+| `qc_store`   | `ARRIVAL_SLIP_SUBMITTED`    | Arrival Slip Submitted   |
+
+Body: `"Arrival slip for {item_name} submitted for QC inspection. Entry: {entry_no}"`
+
+### Signal: `notify_inspection_workflow`
+
+**Trigger:** `RawMaterialInspection` saved — routes by `workflow_status`
+
+| Workflow Status        | Target Group | Notification Type         | Title                              |
+|------------------------|--------------|---------------------------|------------------------------------|
+| `SUBMITTED`            | `qc_chemist` | `QC_INSPECTION_SUBMITTED` | QC Inspection Awaiting Approval    |
+| `QA_CHEMIST_APPROVED`  | `qc_manager` | `QC_CHEMIST_APPROVED`     | QC Chemist Approved - Awaiting QAM |
+| `QAM_APPROVED`         | `grpo`       | `QC_QAM_APPROVED`         | QC Approved - Ready for GRPO       |
+| `REJECTED`             | `qc_store`   | `QC_REJECTED`             | QC Inspection Rejected             |
+
+### Notification Flow Diagram
+
+```
+Arrival Slip Submitted ──> qc_store group
+        |
+        v
+Inspection SUBMITTED ──> qc_chemist group
+        |
+        v
+QA_CHEMIST_APPROVED ──> qc_manager group
+        |
+        ├──> QAM_APPROVED ──> grpo group
+        |
+        └──> REJECTED ──> qc_store group
+```
+
+### Extra Data in Notifications
+
+Each notification includes `extra_data` with:
+
+| Field              | Description                              |
+|--------------------|------------------------------------------|
+| `reference_type`   | `"arrival_slip"` or `"inspection"`       |
+| `reference_id`     | UUID of the slip or inspection           |
+| `vehicle_entry_id` | UUID of the parent vehicle entry         |
+| `entry_no`         | Human-readable entry number              |
+| `report_no`        | Inspection report number (inspections only) |
+| `workflow_status`  | Current workflow status (inspections only)  |
+| `final_status`     | Final QC decision (inspections only)        |
+
+### Required Auth Groups
+
+These Django auth groups must exist for notifications to reach the correct users:
+
+| Group Name   | Role                              |
+|--------------|-----------------------------------|
+| `qc_store`   | QC Store / Security personnel     |
+| `qc_chemist` | QA Chemist / Lab technicians      |
+| `qc_manager` | QA Manager                        |
+| `grpo`       | GRPO / Goods Receipt team         |
