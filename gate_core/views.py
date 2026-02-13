@@ -26,7 +26,7 @@ class GateAttachmentListCreateView(APIView):
 
     def get(self, request, gate_entry_id):
         attachments = GateAttachment.objects.filter(gate_entry_id=gate_entry_id)
-        serializer = GateAttachmentSerializer(attachments, many=True)
+        serializer = GateAttachmentSerializer(attachments, many=True, context={'request': request})
         return Response(serializer.data)
 
     def post(self, request, gate_entry_id):

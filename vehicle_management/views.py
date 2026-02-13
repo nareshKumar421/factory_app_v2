@@ -90,6 +90,13 @@ class VehicleDetailAPI(APIView):
         serializer = VehicleSerializer(vehicle)
         return Response(serializer.data)
 
+    def put(self, request, id):
+        vehicle = get_object_or_404(Vehicle, id=id)
+        serializer = VehicleSerializer(vehicle, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(updated_by=request.user)
+        return Response(serializer.data)
+
 class VehicleEntryListCreateAPI(APIView):
     """
     Gate root entry
