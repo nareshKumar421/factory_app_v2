@@ -24,6 +24,7 @@ class InspectionWorkflowStatus(models.TextChoices):
     SUBMITTED = "SUBMITTED", "Submitted"
     QA_CHEMIST_APPROVED = "QA_CHEMIST_APPROVED", "QA Chemist Approved"
     QAM_APPROVED = "QAM_APPROVED", "QAM Approved"
+    REJECTED = "REJECTED", "Rejected"
     COMPLETED = "COMPLETED", "Completed"
 
 

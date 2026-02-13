@@ -4,8 +4,34 @@ from ..enums import GateEntryStatus
 
 ALLOWED_TRANSITIONS = {
     GateEntryStatus.DRAFT: [GateEntryStatus.IN_PROGRESS],
-    GateEntryStatus.IN_PROGRESS: [GateEntryStatus.QC_PENDING],
-    GateEntryStatus.QC_PENDING: [GateEntryStatus.QC_COMPLETED],
+    GateEntryStatus.IN_PROGRESS: [
+        GateEntryStatus.QC_PENDING,
+        GateEntryStatus.ARRIVAL_SLIP_SUBMITTED,
+    ],
+    GateEntryStatus.ARRIVAL_SLIP_SUBMITTED: [
+        GateEntryStatus.QC_PENDING,
+        GateEntryStatus.ARRIVAL_SLIP_REJECTED,
+    ],
+    GateEntryStatus.ARRIVAL_SLIP_REJECTED: [
+        GateEntryStatus.ARRIVAL_SLIP_SUBMITTED,  # resubmit after rejection
+    ],
+    GateEntryStatus.QC_PENDING: [
+        GateEntryStatus.QC_IN_REVIEW,
+        GateEntryStatus.QC_COMPLETED,
+    ],
+    GateEntryStatus.QC_IN_REVIEW: [
+        GateEntryStatus.QC_AWAITING_QAM,
+        GateEntryStatus.QC_REJECTED,
+        GateEntryStatus.QC_COMPLETED,
+    ],
+    GateEntryStatus.QC_AWAITING_QAM: [
+        GateEntryStatus.QC_COMPLETED,
+        GateEntryStatus.QC_REJECTED,
+    ],
+    GateEntryStatus.QC_REJECTED: [
+        GateEntryStatus.QC_COMPLETED,
+        GateEntryStatus.COMPLETED,
+    ],
     GateEntryStatus.QC_COMPLETED: [GateEntryStatus.COMPLETED],
 }
 

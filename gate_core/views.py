@@ -81,6 +81,8 @@ class RawMaterialGateEntryFullView(APIView):
             return "AWAITING_CHEMIST", "Awaiting Chemist Approval"
         elif inspection.workflow_status == "QA_CHEMIST_APPROVED":
             return "AWAITING_QAM", "Awaiting QAM Approval"
+        elif inspection.workflow_status == "REJECTED":
+            return "REJECTED", "QC Rejected"
         elif inspection.workflow_status in ["QAM_APPROVED", "COMPLETED"]:
             # Check final status
             if inspection.final_status == "ACCEPTED":
@@ -110,6 +112,7 @@ class RawMaterialGateEntryFullView(APIView):
                     "po_receipts__items__arrival_slip__inspection__material_type",
                     "po_receipts__items__arrival_slip__inspection__qa_chemist",
                     "po_receipts__items__arrival_slip__inspection__qam",
+                    "po_receipts__items__arrival_slip__inspection__rejected_by",
                     "po_receipts__items__arrival_slip__submitted_by",
                     "po_receipts__created_by"
                 )
@@ -314,6 +317,8 @@ class RawMaterialGateEntryFullView(APIView):
                         "qam": inspection.qam.email if inspection.qam else None,
                         "qam_approved_at": inspection.qam_approved_at,
                         "qam_remarks": inspection.qam_remarks,
+                        "rejected_by": inspection.rejected_by.email if inspection.rejected_by else None,
+                        "rejected_at": inspection.rejected_at,
                         "remarks": inspection.remarks,
                         "created_at": inspection.created_at,
                     }
