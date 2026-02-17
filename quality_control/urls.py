@@ -25,6 +25,9 @@ from .views import (
     InspectionRejectAPI,
     # Inspection List APIs (Status-Based)
     InspectionListAPI,
+    InspectionDraftListAPI,
+    InspectionActionableListAPI,
+    InspectionCountsAPI,
     InspectionAwaitingChemistAPI,
     InspectionAwaitingQAMAPI,
     InspectionCompletedAPI,
@@ -90,6 +93,21 @@ urlpatterns = [
         "inspections/pending/",
         InspectionPendingListAPI.as_view(),
         name="inspection-pending-list"
+    ),
+    path(
+        "inspections/draft/",
+        InspectionDraftListAPI.as_view(),
+        name="inspection-draft-list"
+    ),
+    path(
+        "inspections/actionable/",
+        InspectionActionableListAPI.as_view(),
+        name="inspection-actionable-list"
+    ),
+    path(
+        "inspections/counts/",
+        InspectionCountsAPI.as_view(),
+        name="inspection-counts"
     ),
     path(
         "inspections/awaiting-chemist/",

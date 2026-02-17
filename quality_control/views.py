@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
+from django.db.models import Q, Count
 
 from company.permissions import HasCompanyContext
 from driver_management.models import VehicleEntry
@@ -28,6 +29,7 @@ from .serializers import (
     RawMaterialInspectionSerializer,
     RawMaterialInspectionCreateSerializer,
     InspectionParameterResultSerializer,
+    InspectionListItemSerializer,
     ApprovalSerializer,
     ParameterResultBulkUpdateSerializer,
 )
@@ -333,43 +335,6 @@ class ArrivalSlipSubmitAPI(APIView):
 
 
 # ==================== Raw Material Inspection APIs ====================
-
-class InspectionPendingListAPI(APIView):
-    """List arrival slips for QA inspection (pending + rejected)"""
-    permission_classes = [IsAuthenticated, HasCompanyContext, CanViewInspection]
-
-    def get(self, request):
-        # Get all submitted or rejected arrival slips
-        slips = MaterialArrivalSlip.objects.filter(
-            po_item_receipt__po_receipt__vehicle_entry__company=request.company.company,
-            status__in=[ArrivalSlipStatus.SUBMITTED, ArrivalSlipStatus.REJECTED]
-        ).select_related(
-            "po_item_receipt", "po_item_receipt__po_receipt",
-            "po_item_receipt__po_receipt__vehicle_entry"
-        ).prefetch_related("inspection")
-
-        result = []
-        for slip in slips:
-            has_inspection = hasattr(slip, "inspection")
-            inspection_status = None
-            inspection_final_status = None
-            if has_inspection:
-                inspection_status = slip.inspection.workflow_status
-                inspection_final_status = slip.inspection.final_status
-
-                # Skip fully approved inspections (not pending anymore)
-                if inspection_status == InspectionWorkflowStatus.QAM_APPROVED:
-                    continue
-
-            result.append({
-                "arrival_slip": MaterialArrivalSlipSerializer(slip).data,
-                "has_inspection": has_inspection,
-                "inspection_status": inspection_status,
-                "inspection_final_status": inspection_final_status,
-            })
-
-        return Response(result)
-
 
 class InspectionCreateUpdateAPI(APIView):
     """Create or update inspection for an arrival slip"""
@@ -714,7 +679,7 @@ class InspectionRejectAPI(APIView):
 # ==================== Inspection List APIs (Status-Based) ====================
 
 def _get_inspection_queryset(company):
-    """Base queryset for inspection list APIs with optimized joins."""
+    """Base queryset for inspection detail/approval APIs with optimized joins."""
     return RawMaterialInspection.objects.filter(
         arrival_slip__po_item_receipt__po_receipt__vehicle_entry__company=company
     ).select_related(
@@ -729,31 +694,79 @@ def _get_inspection_queryset(company):
     ).prefetch_related("parameter_results__parameter_master")
 
 
+def _get_slip_list_queryset(company):
+    """Base queryset for list endpoints. Queries from MaterialArrivalSlip with LEFT JOIN to inspection."""
+    return MaterialArrivalSlip.objects.filter(
+        po_item_receipt__po_receipt__vehicle_entry__company=company,
+        status__in=[ArrivalSlipStatus.SUBMITTED, ArrivalSlipStatus.REJECTED],
+    ).select_related(
+        "inspection",
+        "po_item_receipt",
+        "po_item_receipt__po_receipt",
+        "po_item_receipt__po_receipt__vehicle_entry",
+    )
+
+
+def _apply_date_filters(qs, request):
+    """Apply from_date/to_date filters on submitted_at."""
+    from_date = request.query_params.get("from_date")
+    to_date = request.query_params.get("to_date")
+    if from_date:
+        qs = qs.filter(submitted_at__date__gte=from_date)
+    if to_date:
+        qs = qs.filter(submitted_at__date__lte=to_date)
+    return qs
+
+
 class InspectionListAPI(APIView):
-    """List all inspections with optional filters"""
+    """List all submitted arrival slips regardless of inspection status — 'All' tab"""
     permission_classes = [IsAuthenticated, HasCompanyContext, CanViewInspection]
 
     def get(self, request):
-        qs = _get_inspection_queryset(request.company.company)
+        qs = _get_slip_list_queryset(request.company.company)
+        qs = _apply_date_filters(qs, request)
+        return Response(InspectionListItemSerializer(qs, many=True).data)
 
-        # Optional filters
-        workflow_status = request.query_params.get("workflow_status")
-        if workflow_status:
-            qs = qs.filter(workflow_status=workflow_status)
 
-        final_status_param = request.query_params.get("final_status")
-        if final_status_param:
-            qs = qs.filter(final_status=final_status_param)
+class InspectionPendingListAPI(APIView):
+    """List arrival slips with no inspection — 'Pending' tab"""
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanViewInspection]
 
-        from_date = request.query_params.get("from_date")
-        to_date = request.query_params.get("to_date")
-        if from_date:
-            qs = qs.filter(inspection_date__gte=from_date)
-        if to_date:
-            qs = qs.filter(inspection_date__lte=to_date)
+    def get(self, request):
+        qs = _get_slip_list_queryset(request.company.company).filter(
+            inspection__isnull=True
+        )
+        qs = _apply_date_filters(qs, request)
+        return Response(InspectionListItemSerializer(qs, many=True).data)
 
-        serializer = RawMaterialInspectionSerializer(qs, many=True)
-        return Response(serializer.data)
+
+class InspectionDraftListAPI(APIView):
+    """List arrival slips with draft inspections — 'Draft' tab"""
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanViewInspection]
+
+    def get(self, request):
+        qs = _get_slip_list_queryset(request.company.company).filter(
+            inspection__workflow_status=InspectionWorkflowStatus.DRAFT
+        )
+        qs = _apply_date_filters(qs, request)
+        return Response(InspectionListItemSerializer(qs, many=True).data)
+
+
+class InspectionActionableListAPI(APIView):
+    """List items needing action — 'Actionable' tab"""
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanViewInspection]
+
+    def get(self, request):
+        qs = _get_slip_list_queryset(request.company.company).filter(
+            Q(inspection__isnull=True) |
+            Q(inspection__workflow_status__in=[
+                InspectionWorkflowStatus.DRAFT,
+                InspectionWorkflowStatus.SUBMITTED,
+                InspectionWorkflowStatus.QA_CHEMIST_APPROVED,
+            ])
+        )
+        qs = _apply_date_filters(qs, request)
+        return Response(InspectionListItemSerializer(qs, many=True).data)
 
 
 class InspectionAwaitingChemistAPI(APIView):
@@ -781,29 +794,57 @@ class InspectionAwaitingQAMAPI(APIView):
 
 
 class InspectionCompletedAPI(APIView):
-    """List all QAM-approved inspections"""
+    """List QAM-approved items — 'Approved' tab"""
     permission_classes = [IsAuthenticated, HasCompanyContext, CanViewInspection]
 
     def get(self, request):
-        qs = _get_inspection_queryset(request.company.company).filter(
-            workflow_status=InspectionWorkflowStatus.QAM_APPROVED
+        qs = _get_slip_list_queryset(request.company.company).filter(
+            inspection__workflow_status=InspectionWorkflowStatus.QAM_APPROVED,
         )
-
         final_status_param = request.query_params.get("final_status")
         if final_status_param:
-            qs = qs.filter(final_status=final_status_param)
-
-        serializer = RawMaterialInspectionSerializer(qs, many=True)
-        return Response(serializer.data)
+            qs = qs.filter(inspection__final_status=final_status_param)
+        qs = _apply_date_filters(qs, request)
+        return Response(InspectionListItemSerializer(qs, many=True).data)
 
 
 class InspectionRejectedAPI(APIView):
-    """List all rejected inspections"""
+    """List rejected items — 'Rejected' tab"""
     permission_classes = [IsAuthenticated, HasCompanyContext, CanViewInspection]
 
     def get(self, request):
-        qs = _get_inspection_queryset(request.company.company).filter(
-            workflow_status=InspectionWorkflowStatus.REJECTED
+        qs = _get_slip_list_queryset(request.company.company).filter(
+            inspection__final_status=InspectionStatus.REJECTED
         )
-        serializer = RawMaterialInspectionSerializer(qs, many=True)
-        return Response(serializer.data)
+        qs = _apply_date_filters(qs, request)
+        return Response(InspectionListItemSerializer(qs, many=True).data)
+
+
+class InspectionCountsAPI(APIView):
+    """Dashboard counts — single DB query using conditional aggregation"""
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanViewInspection]
+
+    def get(self, request):
+        base = _get_slip_list_queryset(request.company.company)
+        base = _apply_date_filters(base, request)
+
+        counts = base.aggregate(
+            not_started=Count("id", filter=Q(inspection__isnull=True)),
+            draft=Count("id", filter=Q(inspection__workflow_status="DRAFT")),
+            awaiting_chemist=Count("id", filter=Q(inspection__workflow_status="SUBMITTED")),
+            awaiting_qam=Count("id", filter=Q(inspection__workflow_status="QA_CHEMIST_APPROVED")),
+            completed=Count("id", filter=Q(
+                inspection__workflow_status="QAM_APPROVED",
+                inspection__final_status="ACCEPTED",
+            )),
+            rejected=Count("id", filter=Q(inspection__final_status="REJECTED")),
+            hold=Count("id", filter=Q(
+                inspection__workflow_status="QAM_APPROVED",
+                inspection__final_status="HOLD",
+            )),
+        )
+        counts["actionable"] = (
+            counts["not_started"] + counts["draft"]
+            + counts["awaiting_chemist"] + counts["awaiting_qam"]
+        )
+        return Response(counts)
