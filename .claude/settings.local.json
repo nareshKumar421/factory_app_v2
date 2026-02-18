@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(\"c:\\\\dev\\\\factory_app_v2\\\\.venv\\\\Scripts\\\\python.exe\" -c \"import pip; from pip._internal.operations.freeze import freeze; [print\\(p\\) for p in freeze\\(\\) if ''odbc'' in p.lower\\(\\) or ''hana'' in p.lower\\(\\) or ''hdb'' in p.lower\\(\\)]\")",
+      "Bash(\"c:\\\\dev\\\\factory_app_v2\\\\.venv\\\\Scripts\\\\python.exe\" -m pip list)",
+      "Bash(\"c:\\\\dev\\\\factory_app_v2\\\\.venv\\\\Scripts\\\\python.exe\" -m pip install pyodbc)",
+      "Bash(\"c:\\\\dev\\\\factory_app_v2\\\\.venv\\\\Scripts\\\\python.exe\" -c \"import pyodbc; print\\(''Available ODBC drivers:''\\); [print\\(f''  - {d}''\\) for d in pyodbc.drivers\\(\\)]\")",
+      "Bash(\"c:\\\\dev\\\\factory_app_v2\\\\.venv\\\\Scripts\\\\python.exe\" -m pip install hdbcli)"
+    ]
+  }
+}

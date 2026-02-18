@@ -1,4 +1,4 @@
-import pyodbc
+from hdbcli import dbapi
 
 
 class HanaConnection:
@@ -8,9 +8,9 @@ class HanaConnection:
         self.schema = hana_config['schema']
 
     def connect(self):
-        return pyodbc.connect(
-            f"DRIVER={{HDBODBC}};"
-            f"SERVERNODE={self.hana['host']}:{self.hana['port']};"
-            f"UID={self.hana['user']};"
-            f"PWD={self.hana['password']}"
+        return dbapi.connect(
+            address=self.hana['host'],
+            port=self.hana['port'],
+            user=self.hana['user'],
+            password=self.hana['password'],
         )
