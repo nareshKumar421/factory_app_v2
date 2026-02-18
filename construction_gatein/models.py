@@ -3,6 +3,7 @@ from django.db import models
 from django.conf import settings
 from django.core.validators import MinValueValidator, RegexValidator
 from driver_management.models import VehicleEntry
+from gate_core.models import UnitChoice
 
 
 class ConstructionMaterialCategory(models.Model):
@@ -29,13 +30,6 @@ class ConstructionGateEntry(models.Model):
     Construction / Civil Work Material Gate Pass entry.
     Linked to VehicleEntry via OneToOne relationship.
     """
-
-    UNIT_CHOICES = (
-        ("PCS", "Pieces"),
-        ("KG", "Kilogram"),
-        ("LTR", "Litre"),
-        ("BOX", "Box"),
-    )
 
     SECURITY_APPROVAL_CHOICES = (
         ("PENDING", "Pending"),
@@ -90,7 +84,12 @@ class ConstructionGateEntry(models.Model):
         decimal_places=2,
         validators=[MinValueValidator(0.01, message="Quantity must be positive")]
     )
-    unit = models.CharField(max_length=10, choices=UNIT_CHOICES)
+    unit = models.ForeignKey(
+        UnitChoice,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="construction_entries"
+    )
 
     # Documents
     challan_number = models.CharField(max_length=100, blank=True, null=True)

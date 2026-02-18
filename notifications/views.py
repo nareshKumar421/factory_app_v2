@@ -1,258 +1,277 @@
-from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework.views import APIView
+import logging
+
+from django.db import models
 from django.utils import timezone
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 
 from company.permissions import HasCompanyContext
-from .models import DeviceToken, Notification, NotificationType, NotificationPreference
-from .serializers import (
-    DeviceTokenSerializer,
-    DeviceTokenRegisterSerializer,
-    DeviceTokenUnregisterSerializer,
-    NotificationSerializer,
-    NotificationListSerializer,
-    NotificationPreferenceSerializer,
-    MarkNotificationReadSerializer,
-)
+from .models import Notification
 from .services import NotificationService
-from .services.fcm_service import FCMService
+from .serializers import (
+    DeviceRegistrationSerializer,
+    DeviceUnregisterSerializer,
+    NotificationSerializer,
+    NotificationMarkReadSerializer,
+    SendNotificationSerializer,
+    SendByPermissionSerializer,
+    SendByGroupSerializer,
+)
+from .permissions import CanSendNotification, CanSendBulkNotification
+
+logger = logging.getLogger(__name__)
 
 
-class DeviceTokenView(APIView):
+class DeviceRegisterAPI(APIView): 
     """
-    Manage device tokens for push notifications.
+    Register FCM device token for the authenticated user.
+    POST /api/v1/notifications/devices/register/
     """
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        """List user's registered device tokens."""
-        tokens = DeviceToken.objects.filter(
-            user=request.user,
-            is_active=True
-        )
-        serializer = DeviceTokenSerializer(tokens, many=True)
-        return Response(serializer.data)
-
     def post(self, request):
-        """Register a new device token."""
-        serializer = DeviceTokenRegisterSerializer(data=request.data)
+        serializer = DeviceRegistrationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # Get company from header if available
-        company = None
-        if hasattr(request, 'company'):
-            company = request.company.company
-
-        device_token = NotificationService.register_device(
+        device = NotificationService.register_device(
             user=request.user,
-            token=serializer.validated_data["token"],
-            platform=serializer.validated_data["platform"],
-            device_name=serializer.validated_data.get("device_name"),
-            company=company,
+            fcm_token=serializer.validated_data["fcm_token"],
+            device_type=serializer.validated_data.get("device_type", "WEB"),
+            device_info=serializer.validated_data.get("device_info", ""),
         )
 
         return Response(
-            DeviceTokenSerializer(device_token).data,
+            {"message": "Device registered successfully", "device_id": device.id},
             status=status.HTTP_201_CREATED
         )
 
-    def delete(self, request):
-        """Unregister a device token."""
-        serializer = DeviceTokenUnregisterSerializer(data=request.data)
+
+class DeviceUnregisterAPI(APIView):
+    """
+    Unregister FCM device token (on logout).
+    POST /api/v1/notifications/devices/unregister/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = DeviceUnregisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        success = NotificationService.unregister_device(
+        removed = NotificationService.unregister_device(
             user=request.user,
-            token=serializer.validated_data["token"]
+            fcm_token=serializer.validated_data["fcm_token"],
         )
 
-        if success:
-            return Response({"message": "Device token unregistered"})
+        if removed:
+            return Response({"message": "Device unregistered successfully"})
         return Response(
-            {"error": "Device token not found"},
+            {"detail": "Device token not found"},
             status=status.HTTP_404_NOT_FOUND
         )
 
 
-@api_view(["GET"])
-@permission_classes([IsAuthenticated, HasCompanyContext])
-def notification_list(request):
+class NotificationListAPI(APIView):
     """
-    List notifications for the current user in company context.
-
-    Query Parameters:
-    - is_read: Filter by read status (true/false)
-    - limit: Number of notifications to return (default: 50)
-    - offset: Pagination offset
+    List notifications for the authenticated user.
+    GET /api/v1/notifications/
+    Query params: ?is_read=true|false&type=GRPO_POSTED&page=1&page_size=20
     """
-    company = request.company.company
-
-    notifications = Notification.objects.filter(
-        recipient=request.user,
-        company=company
-    )
-
-    # Filter by read status
-    is_read = request.query_params.get("is_read")
-    if is_read is not None:
-        is_read_bool = is_read.lower() == "true"
-        notifications = notifications.filter(is_read=is_read_bool)
-
-    # Pagination
-    limit = int(request.query_params.get("limit", 50))
-    offset = int(request.query_params.get("offset", 0))
-
-    total_count = notifications.count()
-    unread_count = notifications.filter(is_read=False).count()
-
-    notifications = notifications[offset:offset + limit]
-    serializer = NotificationListSerializer(notifications, many=True)
-
-    return Response({
-        "count": total_count,
-        "unread_count": unread_count,
-        "results": serializer.data
-    })
-
-
-@api_view(["GET"])
-@permission_classes([IsAuthenticated, HasCompanyContext])
-def notification_detail(request, pk):
-    """Get notification detail and mark as read."""
-    try:
-        notification = Notification.objects.get(
-            pk=pk,
-            recipient=request.user,
-            company=request.company.company
-        )
-    except Notification.DoesNotExist:
-        return Response(
-            {"error": "Notification not found"},
-            status=status.HTTP_404_NOT_FOUND
-        )
-
-    # Mark as read
-    if not notification.is_read:
-        notification.is_read = True
-        notification.read_at = timezone.now()
-        notification.save(update_fields=["is_read", "read_at"])
-
-    serializer = NotificationSerializer(notification)
-    return Response(serializer.data)
-
-
-@api_view(["POST"])
-@permission_classes([IsAuthenticated, HasCompanyContext])
-def mark_notifications_read(request):
-    """Mark notifications as read."""
-    serializer = MarkNotificationReadSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
-
-    company = request.company.company
-    notification_ids = serializer.validated_data.get("notification_ids")
-
-    queryset = Notification.objects.filter(
-        recipient=request.user,
-        company=company,
-        is_read=False
-    )
-
-    if notification_ids:
-        queryset = queryset.filter(id__in=notification_ids)
-
-    updated_count = queryset.update(
-        is_read=True,
-        read_at=timezone.now()
-    )
-
-    return Response({
-        "message": f"{updated_count} notification(s) marked as read"
-    })
-
-
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def unread_count(request):
-    """Get unread notification count across all companies."""
-    count = Notification.objects.filter(
-        recipient=request.user,
-        is_read=False
-    ).count()
-
-    return Response({"unread_count": count})
-
-
-class NotificationPreferenceView(APIView):
-    """Manage notification preferences."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        """Get all notification types with user preferences."""
-        notification_types = NotificationType.objects.filter(is_active=True)
+        queryset = Notification.objects.filter(recipient=request.user)
 
-        preferences = {
-            p.notification_type_id: p.is_enabled
-            for p in NotificationPreference.objects.filter(user=request.user)
-        }
+        # Filter by company if header present
+        company_code = request.headers.get("Company-Code")
+        if company_code:
+            queryset = queryset.filter(
+                models.Q(company__code=company_code) | models.Q(company__isnull=True)
+            )
 
-        result = []
-        for nt in notification_types:
-            result.append({
-                "id": nt.id,
-                "code": nt.code,
-                "name": nt.name,
-                "description": nt.description,
-                "is_enabled": preferences.get(nt.id, True)  # Default enabled
-            })
+        # Filter by read status
+        is_read = request.query_params.get("is_read")
+        if is_read is not None:
+            queryset = queryset.filter(is_read=is_read.lower() == "true")
 
-        return Response(result)
+        # Filter by type
+        ntype = request.query_params.get("type")
+        if ntype:
+            queryset = queryset.filter(notification_type=ntype)
+
+        # Simple pagination
+        page = int(request.query_params.get("page", 1))
+        page_size = int(request.query_params.get("page_size", 20))
+        page_size = min(page_size, 100)
+
+        start = (page - 1) * page_size
+        end = start + page_size
+
+        total_count = queryset.count()
+        unread_count = Notification.objects.filter(
+            recipient=request.user, is_read=False
+        ).count()
+        notifications = queryset[start:end]
+
+        serializer = NotificationSerializer(notifications, many=True)
+
+        return Response({
+            "results": serializer.data,
+            "total_count": total_count,
+            "unread_count": unread_count,
+            "page": page,
+            "page_size": page_size,
+        })
+
+
+class NotificationMarkReadAPI(APIView):
+    """
+    Mark notifications as read.
+    POST /api/v1/notifications/mark-read/
+    Body: {"notification_ids": [1, 2, 3]} or {} to mark all as read.
+    """
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        """Update notification preference."""
-        serializer = NotificationPreferenceSerializer(data=request.data)
+        serializer = NotificationMarkReadSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        pref, created = NotificationPreference.objects.update_or_create(
-            user=request.user,
-            notification_type_id=serializer.validated_data["notification_type_id"],
-            defaults={"is_enabled": serializer.validated_data["is_enabled"]}
+        notification_ids = serializer.validated_data.get("notification_ids", [])
+        now = timezone.now()
+
+        queryset = Notification.objects.filter(
+            recipient=request.user,
+            is_read=False,
         )
 
-        return Response(NotificationPreferenceSerializer(pref).data)
+        if notification_ids:
+            queryset = queryset.filter(id__in=notification_ids)
+
+        updated = queryset.update(is_read=True, read_at=now)
+
+        return Response({"marked_read": updated})
 
 
-@api_view(["POST"])
-@permission_classes([IsAuthenticated])
-def test_fcm_notification(request):
+class NotificationUnreadCountAPI(APIView):
     """
-    Test endpoint to send FCM push notification.
-
-    Request body:
-    {
-        "token": "device_fcm_token",
-        "title": "Test Title",
-        "body": "Test message body"
-    }
+    Get unread notification count.
+    GET /api/v1/notifications/unread-count/
     """
-    token = request.data.get("token")
-    title = request.data.get("title", "Test Notification")
-    body = request.data.get("body", "This is a test notification")
+    permission_classes = [IsAuthenticated]
 
-    if not token:
-        return Response(
-            {"error": "token is required"},
-            status=status.HTTP_400_BAD_REQUEST
+    def get(self, request):
+        count = Notification.objects.filter(
+            recipient=request.user,
+            is_read=False,
+        ).count()
+        return Response({"unread_count": count})
+
+
+class SendNotificationAPI(APIView):
+    """
+    Admin endpoint to send manual notifications.
+    POST /api/v1/notifications/send/
+    Requires: notifications.can_send_notification permission.
+    """
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanSendNotification]
+
+    def post(self, request):
+        serializer = SendNotificationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        data = serializer.validated_data
+        company = request.company.company
+        recipient_user_ids = data.get("recipient_user_ids", [])
+        role_filter = data.get("role_filter", "")
+
+        if recipient_user_ids:
+            from accounts.models import User
+            users = User.objects.filter(id__in=recipient_user_ids, is_active=True)
+            notifications = NotificationService.send_notification_to_group(
+                users=users,
+                title=data["title"],
+                body=data["body"],
+                notification_type=data.get("notification_type", "GENERAL_ANNOUNCEMENT"),
+                click_action_url=data.get("click_action_url", ""),
+                company=company,
+                created_by=request.user,
+            )
+            count = len(notifications)
+        else:
+            count = NotificationService.send_bulk_notification(
+                company=company,
+                title=data["title"],
+                body=data["body"],
+                notification_type=data.get("notification_type", "GENERAL_ANNOUNCEMENT"),
+                click_action_url=data.get("click_action_url", ""),
+                role_name=role_filter or None,
+                created_by=request.user,
+            )
+
+        return Response({
+            "message": f"Notification sent to {count} users",
+            "recipients_count": count,
+        })
+
+
+class SendByPermissionAPI(APIView):
+    """
+    Send notification to all users who have a specific permission.
+    POST /api/v1/notifications/send-by-permission/
+    Requires: notifications.can_send_bulk_notification permission.
+    """
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanSendBulkNotification]
+
+    def post(self, request):
+        serializer = SendByPermissionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        data = serializer.validated_data
+        company = request.company.company
+
+        count = NotificationService.send_notification_by_permission(
+            permission_codename=data["permission_codename"],
+            title=data["title"],
+            body=data["body"],
+            notification_type=data.get("notification_type", "GENERAL_ANNOUNCEMENT"),
+            click_action_url=data.get("click_action_url", ""),
+            company=company,
+            created_by=request.user,
         )
 
-    result = FCMService.send_to_token(
-        token=token,
-        title=title,
-        body=body
-    )
+        return Response({
+            "message": f"Notification sent to {count} users with permission '{data['permission_codename']}'",
+            "recipients_count": count,
+        })
 
-    if result["success"]:
-        return Response(result)
-    else:
-        return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+class SendByGroupAPI(APIView):
+    """
+    Send notification to all users in a Django auth group.
+    POST /api/v1/notifications/send-by-group/
+    Requires: notifications.can_send_bulk_notification permission.
+    """
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanSendBulkNotification]
+
+    def post(self, request):
+        serializer = SendByGroupSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        data = serializer.validated_data
+        company = request.company.company
+
+        count = NotificationService.send_notification_by_auth_group(
+            group_name=data["group_name"],
+            title=data["title"],
+            body=data["body"],
+            notification_type=data.get("notification_type", "GENERAL_ANNOUNCEMENT"),
+            click_action_url=data.get("click_action_url", ""),
+            company=company,
+            created_by=request.user,
+        )
+
+        return Response({
+            "message": f"Notification sent to {count} users in group '{data['group_name']}'",
+            "recipients_count": count,
+        })

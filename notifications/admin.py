@@ -1,38 +1,27 @@
 from django.contrib import admin
-
-from .models import DeviceToken, NotificationType, Notification, NotificationPreference
-
-
-@admin.register(DeviceToken)
-class DeviceTokenAdmin(admin.ModelAdmin):
-    list_display = ["user", "platform", "device_name", "is_active", "created_at", "last_used_at"]
-    list_filter = ["platform", "is_active", "company"]
-    search_fields = ["user__email", "device_name"]
-    readonly_fields = ["created_at", "updated_at", "last_used_at"]
-    raw_id_fields = ["user", "company"]
+from .models import UserDevice, Notification
 
 
-@admin.register(NotificationType)
-class NotificationTypeAdmin(admin.ModelAdmin):
-    list_display = ["code", "name", "is_active", "created_at"]
-    list_filter = ["is_active"]
-    search_fields = ["code", "name"]
-    list_editable = ["is_active"]
+@admin.register(UserDevice)
+class UserDeviceAdmin(admin.ModelAdmin):
+    list_display = ["user", "device_type", "is_active", "created_at", "last_used_at"]
+    list_filter = ["device_type", "is_active"]
+    search_fields = ["user__email", "user__full_name"]
+    readonly_fields = ["fcm_token", "created_at", "last_used_at"]
 
 
 @admin.register(Notification)
 class NotificationAdmin(admin.ModelAdmin):
-    list_display = ["recipient", "title", "status", "is_read", "company", "created_at"]
-    list_filter = ["status", "is_read", "notification_type", "company"]
-    search_fields = ["recipient__email", "title", "body"]
-    readonly_fields = ["created_at", "sent_at", "read_at"]
-    raw_id_fields = ["recipient", "company", "notification_type"]
-    date_hierarchy = "created_at"
-
-
-@admin.register(NotificationPreference)
-class NotificationPreferenceAdmin(admin.ModelAdmin):
-    list_display = ["user", "notification_type", "is_enabled"]
-    list_filter = ["notification_type", "is_enabled"]
-    search_fields = ["user__email"]
-    raw_id_fields = ["user"]
+    list_display = [
+        "id", "title", "recipient", "notification_type",
+        "is_read", "created_at"
+    ]
+    list_filter = ["notification_type", "is_read", "created_at"]
+    search_fields = ["title", "body", "recipient__email"]
+    readonly_fields = [
+        "recipient", "company", "title", "body",
+        "notification_type", "click_action_url",
+        "reference_type", "reference_id",
+        "is_read", "read_at", "extra_data",
+        "created_at", "created_by",
+    ]

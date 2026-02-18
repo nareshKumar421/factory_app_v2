@@ -1,6 +1,7 @@
 import logging
 
 from django.db import transaction
+from rest_framework.exceptions import ValidationError, APIException
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -33,34 +34,36 @@ class ReceivePOAPI(APIView):
             id=gate_entry_id,
             company=request.company.company
         )
-
+    
         # Validate request payload
         request_serializer = POReceiveRequestSerializer(data=request.data)
         request_serializer.is_valid(raise_exception=True)
         validated_data = request_serializer.validated_data
-
+    
         po_number = validated_data["po_number"]
         supplier_code = validated_data["supplier_code"]
         supplier_name = validated_data["supplier_name"]
         items_data = validated_data["items"]
-
+    
         # Fetch SAP remaining quantities first (before creating any records)
         try:
             client = SAPClient(company_code=request.company.company.code)
             sap_pos = client.get_open_pos(supplier_code)
         except SAPConnectionError as e:
             logger.error(f"SAP connection error in ReceivePOAPI: {e}")
-            return Response(
-                {"detail": "SAP system is currently unavailable. Please try again later."},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            # Raise exception to trigger rollback
+            raise APIException(
+                detail="SAP system is currently unavailable. Please try again later.",
+                code=503
             )
         except SAPDataError as e:
             logger.error(f"SAP data error in ReceivePOAPI: {e}")
-            return Response(
-                {"detail": "Failed to retrieve PO data from SAP."},
-                status=status.HTTP_502_BAD_GATEWAY
+            # Raise exception to trigger rollback
+            raise APIException(
+                detail="Failed to retrieve PO data from SAP.",
+                code=502
             )
-
+    
         # Create PO receipt header (after SAP validation succeeds)
         po_receipt = POReceipt.objects.create(
             vehicle_entry=entry,
@@ -69,24 +72,27 @@ class ReceivePOAPI(APIView):
             supplier_name=supplier_name,
             created_by=request.user
         )
-
+    
+        # Build SAP items map
         sap_items_map = {}
         for po in sap_pos:
             if po.po_number == po_number:
                 for i in po.items:
                     sap_items_map[i.po_item_code] = i.remaining_qty
-
+    
+        # Validate and create item receipts
         for item_data in items_data:
             po_item_code = item_data["po_item_code"]
             received_qty = item_data["received_qty"]
-
+    
             remaining_qty = sap_items_map.get(po_item_code)
             if remaining_qty is None:
-                return Response(
-                    {"detail": f"Invalid PO item {po_item_code}"},
-                    status=status.HTTP_400_BAD_REQUEST
+                # Raise exception to trigger rollback
+                raise ValidationError(
+                    {"detail": f"Invalid PO item {po_item_code}"}
                 )
-
+    
+            # This will automatically raise ValueError if validation fails
             try:
                 validate_received_quantity(
                     item_data["ordered_qty"],
@@ -94,19 +100,20 @@ class ReceivePOAPI(APIView):
                     received_qty
                 )
             except ValueError as e:
-                return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
+                # Convert to ValidationError to trigger rollback
+                raise ValidationError({"error": str(e)})
+    
             POItemReceipt.objects.create(
                 po_receipt=po_receipt,
                 **item_data,
                 created_by=request.user
             )
-
+    
         # Update status after successful receipt
         if entry.status == GateEntryStatus.IN_PROGRESS:
             entry.status = GateEntryStatus.QC_PENDING
             entry.save(update_fields=["status"])
-
+    
         return Response(
             {"message": "PO items received successfully"},
             status=status.HTTP_201_CREATED

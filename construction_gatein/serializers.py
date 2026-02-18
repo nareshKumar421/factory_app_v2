@@ -45,6 +45,12 @@ class ConstructionGateEntrySerializer(serializers.ModelSerializer):
                 'id': instance.material_category.id,
                 'category_name': instance.material_category.category_name
             }
+        
+        if instance.unit:
+            data['unit'] = {
+                'id': instance.unit.id,
+                'name': instance.unit.name
+            }
 
         return data
 

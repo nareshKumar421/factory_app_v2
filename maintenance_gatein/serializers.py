@@ -52,5 +52,11 @@ class MaintenanceGateEntrySerializer(serializers.ModelSerializer):
                 'id': instance.receiving_department.id,
                 'name': instance.receiving_department.name
             }
+        
+        if instance.unit:
+            data['unit'] = {
+                'id': instance.unit.id,
+                'name': instance.unit.name
+            }
 
         return data

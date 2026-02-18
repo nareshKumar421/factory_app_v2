@@ -84,6 +84,16 @@ class RawMaterialInspection(BaseModel):
     qam_approved_at = models.DateTimeField(null=True, blank=True)
     qam_remarks = models.TextField(blank=True)
 
+    # Rejection tracking
+    rejected_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="inspections_rejected"
+    )
+    rejected_at = models.DateTimeField(null=True, blank=True)
+
     # Workflow status
     workflow_status = models.CharField(
         max_length=30,
@@ -192,14 +202,18 @@ class RawMaterialInspection(BaseModel):
             "workflow_status", "final_status", "is_locked", "updated_at"
         ])
 
-    def reject(self, remarks=""):
+    def reject(self, user, remarks=""):
         """Reject inspection - sends back to security guard."""
         self.final_status = InspectionStatus.REJECTED
-        self.workflow_status = InspectionWorkflowStatus.COMPLETED
+        self.workflow_status = InspectionWorkflowStatus.REJECTED
         self.is_locked = True
         self.remarks = remarks
+        self.rejected_by = user
+        self.rejected_at = timezone.now()
+        self.updated_by = user
         self.save(update_fields=[
-            "final_status", "workflow_status", "is_locked", "remarks", "updated_at"
+            "final_status", "workflow_status", "is_locked", "remarks",
+            "rejected_by", "rejected_at", "updated_by", "updated_at"
         ])
         # Also mark arrival slip as rejected
         self.arrival_slip.reject_by_qa(remarks=remarks)

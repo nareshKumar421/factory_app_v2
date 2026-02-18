@@ -14,6 +14,45 @@ from .permissions import (
     CanViewMaintenanceFullEntry,
     CanViewConstructionFullEntry,
 )
+from .models import UnitChoice, GateAttachment
+from .serializers import UnitChoiceSerializer
+from .serializers import GateAttachmentSerializer
+
+class GateAttachmentListCreateView(APIView):
+    """
+    API view to list and create gate attachments for a specific gate entry
+    """
+    permission_classes = [IsAuthenticated, HasCompanyContext]
+
+    def get(self, request, gate_entry_id):
+        attachments = GateAttachment.objects.filter(gate_entry_id=gate_entry_id)
+        serializer = GateAttachmentSerializer(attachments, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    def post(self, request, gate_entry_id):
+        # Validate that the gate entry exists and belongs to the company
+        try:
+            entry = VehicleEntry.objects.get(id=gate_entry_id, company=request.company.company)
+        except VehicleEntry.DoesNotExist:
+            raise NotFound("Gate entry not found")
+
+        serializer = GateAttachmentSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save(gate_entry=entry)
+
+        return Response(serializer.data, status=201)
+
+
+class UnitChoiceListView(APIView):
+    """
+    API view to list all unit choices
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        units = UnitChoice.objects.all()
+        serializer = UnitChoiceSerializer(units, many=True)
+        return Response(serializer.data)
 
 class RawMaterialGateEntryFullView(APIView):
     """
@@ -42,6 +81,8 @@ class RawMaterialGateEntryFullView(APIView):
             return "AWAITING_CHEMIST", "Awaiting Chemist Approval"
         elif inspection.workflow_status == "QA_CHEMIST_APPROVED":
             return "AWAITING_QAM", "Awaiting QAM Approval"
+        elif inspection.workflow_status == "REJECTED":
+            return "REJECTED", "QC Rejected"
         elif inspection.workflow_status in ["QAM_APPROVED", "COMPLETED"]:
             # Check final status
             if inspection.final_status == "ACCEPTED":
@@ -71,6 +112,7 @@ class RawMaterialGateEntryFullView(APIView):
                     "po_receipts__items__arrival_slip__inspection__material_type",
                     "po_receipts__items__arrival_slip__inspection__qa_chemist",
                     "po_receipts__items__arrival_slip__inspection__qam",
+                    "po_receipts__items__arrival_slip__inspection__rejected_by",
                     "po_receipts__items__arrival_slip__submitted_by",
                     "po_receipts__created_by"
                 )
@@ -111,7 +153,7 @@ class RawMaterialGateEntryFullView(APIView):
             "vehicle": {
                 "id": entry.vehicle.id,
                 "vehicle_number": entry.vehicle.vehicle_number,
-                "vehicle_type": entry.vehicle.vehicle_type,
+                "vehicle_type": entry.vehicle.vehicle_type.name if entry.vehicle.vehicle_type else None,
                 "capacity_ton": float(entry.vehicle.capacity_ton) if entry.vehicle.capacity_ton else None,
             },
 
@@ -275,6 +317,8 @@ class RawMaterialGateEntryFullView(APIView):
                         "qam": inspection.qam.email if inspection.qam else None,
                         "qam_approved_at": inspection.qam_approved_at,
                         "qam_remarks": inspection.qam_remarks,
+                        "rejected_by": inspection.rejected_by.email if inspection.rejected_by else None,
+                        "rejected_at": inspection.rejected_at,
                         "remarks": inspection.remarks,
                         "created_at": inspection.created_at,
                     }
@@ -340,7 +384,7 @@ class DailyNeedGateEntryFullView(APIView):
             # -----------------------
             "vehicle": {
                 "vehicle_number": entry.vehicle.vehicle_number,
-                "vehicle_type": entry.vehicle.vehicle_type,
+                "vehicle_type": entry.vehicle.vehicle_type.name if entry.vehicle.vehicle_type else None,
                 "capacity_ton": entry.vehicle.capacity_ton,
             },
 
@@ -388,7 +432,7 @@ class DailyNeedGateEntryFullView(APIView):
                 "supplier_name": daily.supplier_name,
                 "material_name": daily.material_name,
                 "quantity": float(daily.quantity),
-                "unit": daily.unit,
+                "unit": daily.unit.name if daily.unit else None,
                 "receiving_department": daily.receiving_department.name,
 
                 "bill_number": daily.bill_number,
@@ -461,7 +505,7 @@ class MaintenanceGateEntryFullView(APIView):
             # -----------------------
             "vehicle": {
                 "vehicle_number": entry.vehicle.vehicle_number,
-                "vehicle_type": entry.vehicle.vehicle_type,
+                "vehicle_type": entry.vehicle.vehicle_type.name if entry.vehicle.vehicle_type else None,
                 "capacity_ton": entry.vehicle.capacity_ton,
             },
 
@@ -512,7 +556,7 @@ class MaintenanceGateEntryFullView(APIView):
                 "material_description": maintenance.material_description,
                 "part_number": maintenance.part_number,
                 "quantity": float(maintenance.quantity),
-                "unit": maintenance.unit,
+                "unit": maintenance.unit.name if maintenance.unit else None,
                 "invoice_number": maintenance.invoice_number,
                 "equipment_id": maintenance.equipment_id,
                 "receiving_department": (
@@ -582,7 +626,7 @@ class ConstructionGateEntryFullView(APIView):
             # -----------------------
             "vehicle": {
                 "vehicle_number": entry.vehicle.vehicle_number,
-                "vehicle_type": entry.vehicle.vehicle_type,
+                "vehicle_type": entry.vehicle.vehicle_type.name if entry.vehicle.vehicle_type else None,
                 "capacity_ton": entry.vehicle.capacity_ton,
             },
 
@@ -634,7 +678,7 @@ class ConstructionGateEntryFullView(APIView):
                 "contractor_contact": construction.contractor_contact,
                 "material_description": construction.material_description,
                 "quantity": float(construction.quantity),
-                "unit": construction.unit,
+                "unit": construction.unit.name if construction.unit else None,
                 "challan_number": construction.challan_number,
                 "invoice_number": construction.invoice_number,
                 "site_engineer": construction.site_engineer,

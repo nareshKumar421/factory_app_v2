@@ -155,12 +155,62 @@ class InspectionParameterResultCreateSerializer(serializers.Serializer):
     remarks = serializers.CharField(required=False, allow_blank=True)
 
 
+# ==================== Inspection List Item Serializer ====================
+
+class InspectionListItemSerializer(serializers.ModelSerializer):
+    """Light serializer for all list endpoints. Source: MaterialArrivalSlip."""
+    arrival_slip_id = serializers.IntegerField(source="id")
+    inspection_id = serializers.SerializerMethodField()
+    entry_no = serializers.CharField(
+        source="po_item_receipt.po_receipt.vehicle_entry.entry_no", read_only=True
+    )
+    report_no = serializers.SerializerMethodField()
+    item_name = serializers.CharField(
+        source="po_item_receipt.item_name", read_only=True
+    )
+    workflow_status = serializers.SerializerMethodField()
+    final_status = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MaterialArrivalSlip
+        fields = [
+            "arrival_slip_id", "inspection_id",
+            "entry_no", "report_no",
+            "item_name", "party_name", "billing_qty", "billing_uom",
+            "workflow_status", "final_status",
+            "created_at", "submitted_at",
+        ]
+
+    def _get_inspection(self, obj):
+        try:
+            return obj.inspection
+        except RawMaterialInspection.DoesNotExist:
+            return None
+
+    def get_inspection_id(self, obj):
+        insp = self._get_inspection(obj)
+        return insp.id if insp else None
+
+    def get_report_no(self, obj):
+        insp = self._get_inspection(obj)
+        return insp.report_no if insp else None
+
+    def get_workflow_status(self, obj):
+        insp = self._get_inspection(obj)
+        return insp.workflow_status if insp else "NOT_STARTED"
+
+    def get_final_status(self, obj):
+        insp = self._get_inspection(obj)
+        return insp.final_status if insp else None
+
+
 # ==================== Raw Material Inspection Serializers ====================
 
 class RawMaterialInspectionSerializer(serializers.ModelSerializer):
     parameter_results = InspectionParameterResultSerializer(many=True, read_only=True)
     qa_chemist_name = serializers.CharField(source="qa_chemist.full_name", read_only=True)
     qam_name = serializers.CharField(source="qam.full_name", read_only=True)
+    rejected_by_name = serializers.CharField(source="rejected_by.full_name", read_only=True)
     material_type_name = serializers.CharField(source="material_type.name", read_only=True)
 
     # Arrival slip info
@@ -196,6 +246,7 @@ class RawMaterialInspectionSerializer(serializers.ModelSerializer):
             "final_status", "qa_chemist", "qa_chemist_name",
             "qa_chemist_approved_at", "qa_chemist_remarks",
             "qam", "qam_name", "qam_approved_at", "qam_remarks",
+            "rejected_by", "rejected_by_name", "rejected_at",
             "workflow_status", "is_locked", "remarks",
             "parameter_results", "created_at", "updated_at"
         ]
@@ -206,6 +257,7 @@ class RawMaterialInspectionSerializer(serializers.ModelSerializer):
             "report_no", "internal_lot_no",
             "qa_chemist", "qa_chemist_name", "qa_chemist_approved_at",
             "qam", "qam_name", "qam_approved_at",
+            "rejected_by", "rejected_by_name", "rejected_at",
             "workflow_status", "is_locked", "created_at", "updated_at"
         ]
 

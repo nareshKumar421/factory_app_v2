@@ -1,138 +1,132 @@
 from django.db import models
 from django.conf import settings
 
-from company.models import Company
+User = settings.AUTH_USER_MODEL
 
 
-class DeviceToken(models.Model):
+class UserDevice(models.Model):
     """
-    Stores FCM device tokens for push notification delivery.
-    Supports multiple devices per user and company-scoped tokens.
+    Stores FCM tokens per user per device/browser.
+    One user can have multiple active tokens (multi-device support).
     """
-    PLATFORM_CHOICES = (
-        ("ANDROID", "Android"),
-        ("IOS", "iOS"),
-        ("WEB", "Web"),
-    )
-
     user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        User,
         on_delete=models.CASCADE,
-        related_name="device_tokens"
+        related_name="fcm_devices"
     )
-    company = models.ForeignKey(
-        Company,
-        on_delete=models.CASCADE,
-        related_name="device_tokens",
-        null=True,
-        blank=True,
-        help_text="If set, token is scoped to this company context"
+    fcm_token = models.TextField(unique=True)
+    device_type = models.CharField(
+        max_length=20,
+        choices=[
+            ("WEB", "Web Browser"),
+            ("ANDROID", "Android"),
+            ("IOS", "iOS"),
+        ],
+        default="WEB",
     )
-    token = models.TextField(unique=True)
-    platform = models.CharField(max_length=10, choices=PLATFORM_CHOICES, default="ANDROID")
-    device_name = models.CharField(max_length=100, blank=True, null=True)
+    device_info = models.CharField(max_length=255, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    last_used_at = models.DateTimeField(null=True, blank=True)
+    last_used_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        indexes = [
-            models.Index(fields=["user", "is_active"]),
-            models.Index(fields=["company", "is_active"]),
-        ]
+        ordering = ["-last_used_at"]
+        verbose_name = "User Device"
+        verbose_name_plural = "User Devices"
 
     def __str__(self):
-        return f"{self.user.email} - {self.platform} - {self.device_name or 'Unknown'}"
+        return f"{self.user.email} - {self.device_type}"
 
 
-class NotificationType(models.Model):
-    """
-    Master table for notification types with configurable settings.
-    """
-    code = models.CharField(max_length=50, unique=True)
-    name = models.CharField(max_length=100)
-    description = models.TextField(blank=True)
-    title_template = models.CharField(max_length=200)
-    body_template = models.TextField()
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.code} - {self.name}"
+class NotificationType(models.TextChoices):
+    GATE_ENTRY_CREATED = "GATE_ENTRY_CREATED", "Gate Entry Created"
+    GATE_ENTRY_STATUS_CHANGED = "GATE_ENTRY_STATUS_CHANGED", "Gate Entry Status Changed"
+    SECURITY_CHECK_DONE = "SECURITY_CHECK_DONE", "Security Check Completed"
+    WEIGHMENT_RECORDED = "WEIGHMENT_RECORDED", "Weighment Recorded"
+    ARRIVAL_SLIP_SUBMITTED = "ARRIVAL_SLIP_SUBMITTED", "Arrival Slip Submitted"
+    QC_INSPECTION_SUBMITTED = "QC_INSPECTION_SUBMITTED", "QC Inspection Submitted"
+    QC_CHEMIST_APPROVED = "QC_CHEMIST_APPROVED", "QC Chemist Approved"
+    QC_QAM_APPROVED = "QC_QAM_APPROVED", "QC QAM Approved"
+    QC_REJECTED = "QC_REJECTED", "QC Rejected"
+    QC_COMPLETED = "QC_COMPLETED", "QC Completed"
+    PO_RECEIVED = "PO_RECEIVED", "PO Items Received"
+    GATE_ENTRY_COMPLETED = "GATE_ENTRY_COMPLETED", "Gate Entry Completed"
+    GRPO_POSTED = "GRPO_POSTED", "GRPO Posted to SAP"
+    GRPO_FAILED = "GRPO_FAILED", "GRPO Posting Failed"
+    GENERAL_ANNOUNCEMENT = "GENERAL_ANNOUNCEMENT", "General Announcement"
 
 
 class Notification(models.Model):
     """
-    Logs all sent notifications for audit and history.
+    Stored notification for in-app notification center.
+    Supports both targeted (user-specific) and broadcast notifications.
     """
-    STATUS_CHOICES = (
-        ("PENDING", "Pending"),
-        ("SENT", "Sent"),
-        ("FAILED", "Failed"),
-        ("DELIVERED", "Delivered"),
-    )
-
-    notification_type = models.ForeignKey(
-        NotificationType,
-        on_delete=models.SET_NULL,
-        null=True,
+    recipient = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
         related_name="notifications"
     )
     company = models.ForeignKey(
-        Company,
+        "company.Company",
         on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name="notifications"
     )
-    recipient = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="received_notifications"
-    )
-    title = models.CharField(max_length=200)
+
+    title = models.CharField(max_length=255)
     body = models.TextField()
-    data = models.JSONField(default=dict, blank=True)
-    content_type = models.CharField(max_length=50, blank=True, null=True)
-    object_id = models.PositiveIntegerField(null=True, blank=True)
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="PENDING")
-    fcm_message_id = models.CharField(max_length=200, blank=True, null=True)
-    error_message = models.TextField(blank=True, null=True)
+    notification_type = models.CharField(
+        max_length=50,
+        choices=NotificationType.choices,
+        default=NotificationType.GENERAL_ANNOUNCEMENT,
+    )
+
+    # Deep linking
+    click_action_url = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Frontend route to navigate to on click"
+    )
+    reference_type = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Entity type: vehicle_entry, inspection, grpo_posting, etc."
+    )
+    reference_id = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="ID of the referenced entity"
+    )
+
+    # Status
     is_read = models.BooleanField(default=False)
     read_at = models.DateTimeField(null=True, blank=True)
+
+    # Metadata
+    extra_data = models.JSONField(default=dict, blank=True)
+
+    # Audit
     created_at = models.DateTimeField(auto_now_add=True)
-    sent_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="notifications_sent"
+    )
 
     class Meta:
-        indexes = [
-            models.Index(fields=["recipient", "is_read"]),
-            models.Index(fields=["company", "created_at"]),
-            models.Index(fields=["status"]),
-        ]
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["recipient", "-created_at"]),
+            models.Index(fields=["recipient", "is_read"]),
+            models.Index(fields=["notification_type"]),
+        ]
+        permissions = [
+            ("can_send_notification", "Can send manual notifications"),
+            ("can_send_bulk_notification", "Can send bulk/broadcast notifications"),
+        ]
 
     def __str__(self):
-        return f"{self.recipient.email} - {self.title[:50]}"
-
-
-class NotificationPreference(models.Model):
-    """
-    User preferences for notification types.
-    """
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="notification_preferences"
-    )
-    notification_type = models.ForeignKey(
-        NotificationType,
-        on_delete=models.CASCADE,
-        related_name="user_preferences"
-    )
-    is_enabled = models.BooleanField(default=True)
-
-    class Meta:
-        unique_together = [("user", "notification_type")]
-
-    def __str__(self):
-        status = "Enabled" if self.is_enabled else "Disabled"
-        return f"{self.user.email} - {self.notification_type.code} - {status}"
+        return f"{self.title} -> {self.recipient.email}"

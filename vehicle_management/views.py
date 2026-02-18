@@ -9,6 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from company.permissions import HasCompanyContext
 from driver_management.models import VehicleEntry
+from vehicle_management.models.vehicle import VehicleType
 from .models import Transporter, Vehicle
 from .serializers import (
     TransporterNameSerializer,
@@ -16,6 +17,7 @@ from .serializers import (
     VehicleNameSerializer,
     VehicleSerializer,
     VehicleEntrySerializer,
+    VehicleTypeSerializer,
 )
 
 class TransporterListCreateAPI(APIView):
@@ -86,6 +88,13 @@ class VehicleDetailAPI(APIView):
     def get(self, request, id):
         vehicle = get_object_or_404(Vehicle, id=id)
         serializer = VehicleSerializer(vehicle)
+        return Response(serializer.data)
+
+    def put(self, request, id):
+        vehicle = get_object_or_404(Vehicle, id=id)
+        serializer = VehicleSerializer(vehicle, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(updated_by=request.user)
         return Response(serializer.data)
 
 class VehicleEntryListCreateAPI(APIView):
@@ -298,3 +307,11 @@ class VehicleEntryListByStatus(APIView):
                 context={"request": request}
             ).data
         )
+    
+class VehicleTypeListAPI(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        qs = VehicleType.objects.all().order_by("name")
+        return Response(VehicleTypeSerializer(qs, many=True).data)

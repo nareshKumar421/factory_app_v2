@@ -5,6 +5,7 @@ from django.conf import settings
 from django.core.validators import MinValueValidator
 from driver_management.models import VehicleEntry
 from accounts.models import Department
+from gate_core.models import UnitChoice
 
 
 class MaintenanceType(models.Model):
@@ -31,13 +32,6 @@ class MaintenanceGateEntry(models.Model):
     Maintenance & Repair Material Gate Pass entry.
     Linked to VehicleEntry via OneToOne relationship.
     """
-
-    UNIT_CHOICES = (
-        ("PCS", "Pieces"),
-        ("KG", "Kilogram"),
-        ("LTR", "Litre"),
-        ("BOX", "Box"),
-    )
 
     URGENCY_CHOICES = (
         ("NORMAL", "Normal"),
@@ -81,7 +75,12 @@ class MaintenanceGateEntry(models.Model):
         decimal_places=2,
         validators=[MinValueValidator(Decimal("0.01"), message="Quantity must be positive")]
     )
-    unit = models.CharField(max_length=10, choices=UNIT_CHOICES)
+    unit = models.ForeignKey(
+        UnitChoice,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="maintenance_entries"
+    )
 
     # Documents
     invoice_number = models.CharField(max_length=100, blank=True, null=True)

@@ -1,71 +1,83 @@
 from rest_framework import serializers
-
-from .models import DeviceToken, Notification, NotificationType, NotificationPreference
-
-
-class DeviceTokenSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = DeviceToken
-        fields = [
-            "id", "token", "platform", "device_name",
-            "is_active", "created_at", "last_used_at"
-        ]
-        read_only_fields = ["id", "is_active", "created_at", "last_used_at"]
+from .models import Notification
 
 
-class DeviceTokenRegisterSerializer(serializers.Serializer):
-    token = serializers.CharField(max_length=500)
-    platform = serializers.ChoiceField(choices=["ANDROID", "IOS", "WEB"])
-    device_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
+class DeviceRegistrationSerializer(serializers.Serializer):
+    fcm_token = serializers.CharField(required=True)
+    device_type = serializers.ChoiceField(
+        choices=["WEB", "ANDROID", "IOS"],
+        default="WEB"
+    )
+    device_info = serializers.CharField(required=False, allow_blank=True, default="")
 
 
-class DeviceTokenUnregisterSerializer(serializers.Serializer):
-    token = serializers.CharField(max_length=500)
-
-
-class NotificationTypeSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = NotificationType
-        fields = ["id", "code", "name", "description", "is_active"]
+class DeviceUnregisterSerializer(serializers.Serializer):
+    fcm_token = serializers.CharField(required=True)
 
 
 class NotificationSerializer(serializers.ModelSerializer):
-    notification_type = NotificationTypeSerializer(read_only=True)
-
     class Meta:
         model = Notification
         fields = [
-            "id", "notification_type", "title", "body", "data",
-            "content_type", "object_id", "status", "is_read",
-            "read_at", "created_at", "sent_at"
-        ]
-        read_only_fields = fields
-
-
-class NotificationListSerializer(serializers.ModelSerializer):
-    """Lightweight serializer for list views."""
-    type_code = serializers.CharField(source="notification_type.code", read_only=True)
-
-    class Meta:
-        model = Notification
-        fields = [
-            "id", "type_code", "title", "body", "is_read", "created_at"
+            "id",
+            "title",
+            "body",
+            "notification_type",
+            "click_action_url",
+            "reference_type",
+            "reference_id",
+            "is_read",
+            "read_at",
+            "extra_data",
+            "created_at",
         ]
 
 
-class NotificationPreferenceSerializer(serializers.ModelSerializer):
-    notification_type = NotificationTypeSerializer(read_only=True)
-    notification_type_id = serializers.IntegerField(write_only=True)
-
-    class Meta:
-        model = NotificationPreference
-        fields = ["id", "notification_type", "notification_type_id", "is_enabled"]
-        read_only_fields = ["id"]
-
-
-class MarkNotificationReadSerializer(serializers.Serializer):
+class NotificationMarkReadSerializer(serializers.Serializer):
     notification_ids = serializers.ListField(
         child=serializers.IntegerField(),
         required=False,
+        default=[],
         help_text="List of notification IDs to mark as read. If empty, marks all as read."
     )
+
+
+class SendNotificationSerializer(serializers.Serializer):
+    title = serializers.CharField(max_length=255)
+    body = serializers.CharField()
+    notification_type = serializers.CharField(default="GENERAL_ANNOUNCEMENT")
+    click_action_url = serializers.CharField(required=False, allow_blank=True, default="")
+    recipient_user_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=False,
+        default=[],
+        help_text="Specific user IDs. If empty, sends to all company users."
+    )
+    role_filter = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+        help_text="Filter recipients by role name"
+    )
+
+
+class SendByPermissionSerializer(serializers.Serializer):
+    permission_codename = serializers.CharField(
+        max_length=255,
+        help_text="Permission codename (e.g., 'can_send_notification')"
+    )
+    title = serializers.CharField(max_length=255)
+    body = serializers.CharField()
+    notification_type = serializers.CharField(default="GENERAL_ANNOUNCEMENT")
+    click_action_url = serializers.CharField(required=False, allow_blank=True, default="")
+
+
+class SendByGroupSerializer(serializers.Serializer):
+    group_name = serializers.CharField(
+        max_length=150,
+        help_text="Django auth group name (e.g., 'grpo', 'quality_control')"
+    )
+    title = serializers.CharField(max_length=255)
+    body = serializers.CharField()
+    notification_type = serializers.CharField(default="GENERAL_ANNOUNCEMENT")
+    click_action_url = serializers.CharField(required=False, allow_blank=True, default="")

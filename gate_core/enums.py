@@ -12,6 +12,7 @@ class GateEntryStatus(models.TextChoices):
     QC_PENDING = "QC_PENDING", "QC Pending"
     QC_IN_REVIEW = "QC_IN_REVIEW", "QC In Review"
     QC_AWAITING_QAM = "QC_AWAITING_QAM", "Awaiting QAM Approval"
+    QC_REJECTED = "QC_REJECTED", "QC Rejected"
     QC_COMPLETED = "QC_COMPLETED", "QC Completed"
     COMPLETED = "COMPLETED", "Completed"
     CANCELLED = "CANCELLED", "Cancelled"

@@ -48,13 +48,14 @@ def complete_gate_entry(vehicle_entry: VehicleEntry):
     if not can_complete_gate(po_items):
         raise ValueError("QC is not completed for all items. All items must have inspection with ACCEPTED or REJECTED status.")
 
-    # 6. Status transition validation
-    # If status is QC_PENDING, first transition to QC_COMPLETED
-    if vehicle_entry.status == GateEntryStatus.QC_PENDING:
-        validate_status_transition(
-            vehicle_entry.status,
-            GateEntryStatus.QC_COMPLETED
-        )
+    # 6. Transition to QC_COMPLETED if not already there
+    intermediate_statuses = [
+        GateEntryStatus.QC_PENDING,
+        GateEntryStatus.QC_IN_REVIEW,
+        GateEntryStatus.QC_AWAITING_QAM,
+        GateEntryStatus.QC_REJECTED,
+    ]
+    if vehicle_entry.status in intermediate_statuses:
         vehicle_entry.status = GateEntryStatus.QC_COMPLETED
         vehicle_entry.save(update_fields=["status"])
 
