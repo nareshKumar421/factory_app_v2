@@ -9,6 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from company.permissions import HasCompanyContext
 from driver_management.models import VehicleEntry
+from gate_core.permissions import CanViewGateEntry, CanCreateGateEntry
 from vehicle_management.models.vehicle import VehicleType
 from .models import Transporter, Vehicle
 from .serializers import (
@@ -103,6 +104,14 @@ class VehicleEntryListCreateAPI(APIView):
     """
     permission_classes = [IsAuthenticated, HasCompanyContext]
 
+    def get_permissions(self):
+        permissions = [IsAuthenticated(), HasCompanyContext()]
+        if self.request.method == 'POST':
+            permissions.append(CanCreateGateEntry())
+        else:
+            permissions.append(CanViewGateEntry())
+        return permissions
+
     def get(self, request):
         # Validate required query parameters
         entry_type = request.query_params.get("entry_type")
@@ -179,7 +188,7 @@ class VehicleEntryDetailAPI(APIView):
     """
     Get vehicle entry details by ID
     """
-    permission_classes = [IsAuthenticated, HasCompanyContext]
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanViewGateEntry]
 
     def get(self, request, id):
         entry = get_object_or_404(
@@ -195,7 +204,7 @@ class VehicleEntryCountAPI(APIView):
     """
     Get total count of vehicle entries for the company
     """
-    permission_classes = [IsAuthenticated, HasCompanyContext]
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanViewGateEntry]
 
     def get(self, request):
         # Validate required query parameters
@@ -248,7 +257,7 @@ class VehicleEntryListByStatus(APIView):
     """
     List vehicle entries filtered by status
     """
-    permission_classes = [IsAuthenticated, HasCompanyContext]
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanViewGateEntry]
 
     def get(self, request):
         # Validate required query parameters

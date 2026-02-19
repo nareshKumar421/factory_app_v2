@@ -16,6 +16,13 @@ class CanViewGateEntry(BasePermission):
         return request.user.has_perm("gate_core.can_view_gate_entry")
 
 
+class CanCreateGateEntry(BasePermission):
+    """Permission to create gate entries."""
+
+    def has_permission(self, request, view):
+        return request.user.has_perm("gate_core.can_create_gate_entry")
+
+
 # Full View Permissions (read-only combined gate entry views)
 
 class CanViewRawMaterialFullEntry(BasePermission):
