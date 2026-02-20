@@ -6,6 +6,7 @@ from quality_control.models.qc_parameter_master import QCParameterMaster
 from quality_control.models.material_arrival_slip import MaterialArrivalSlip
 from quality_control.models.raw_material_inspection import RawMaterialInspection
 from quality_control.models.inspection_parameter_result import InspectionParameterResult
+from quality_control.models.arrival_slip_attachment import ArrivalSlipAttachment
 
 
 # ==================== Material Type Serializers ====================
@@ -50,6 +51,15 @@ class QCParameterMasterCreateSerializer(serializers.ModelSerializer):
         ]
 
 
+# ==================== Arrival Slip Attachment Serializer ====================
+
+class ArrivalSlipAttachmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ArrivalSlipAttachment
+        fields = ["id", "file", "attachment_type", "uploaded_at"]
+        read_only_fields = ["id", "uploaded_at"]
+
+
 # ==================== Material Arrival Slip Serializers ====================
 
 class MaterialArrivalSlipSerializer(serializers.ModelSerializer):
@@ -71,6 +81,7 @@ class MaterialArrivalSlipSerializer(serializers.ModelSerializer):
     entry_no = serializers.CharField(
         source="po_item_receipt.po_receipt.vehicle_entry.entry_no", read_only=True
     )
+    attachments = ArrivalSlipAttachmentSerializer(many=True, read_only=True)
 
     class Meta:
         model = MaterialArrivalSlip
@@ -83,7 +94,7 @@ class MaterialArrivalSlipSerializer(serializers.ModelSerializer):
             "eway_bill_no", "bilty_no", "has_certificate_of_analysis",
             "has_certificate_of_quantity", "status", "is_submitted",
             "submitted_at", "submitted_by", "submitted_by_name", "remarks",
-            "created_at", "updated_at"
+            "attachments", "created_at", "updated_at"
         ]
         read_only_fields = [
             "id", "po_item_code", "item_name", "po_receipt_id",

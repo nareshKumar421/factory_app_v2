@@ -4,6 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser
 from django.shortcuts import get_object_or_404
 from django.db.models import Q, Count
 
@@ -18,6 +19,8 @@ from .models import (
     MaterialArrivalSlip,
     RawMaterialInspection,
     InspectionParameterResult,
+    ArrivalSlipAttachment,
+    AttachmentType,
 )
 from .serializers import (
     MaterialTypeSerializer,
@@ -304,8 +307,14 @@ class ArrivalSlipDetailAPI(APIView):
 
 
 class ArrivalSlipSubmitAPI(APIView):
-    """Submit arrival slip to QA"""
+    """Submit arrival slip to QA.
+
+    Accepts optional file attachments via multipart/form-data:
+    - certificate_of_analysis: file (required if has_certificate_of_analysis is true on the slip)
+    - certificate_of_quantity: file (required if has_certificate_of_quantity is true on the slip)
+    """
     permission_classes = [IsAuthenticated, HasCompanyContext, CanSubmitArrivalSlip]
+    parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request, slip_id):
         slip = get_object_or_404(
@@ -318,6 +327,39 @@ class ArrivalSlipSubmitAPI(APIView):
             return Response(
                 {"detail": "Already submitted"},
                 status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get optional file attachments
+        coa_file = request.FILES.get("certificate_of_analysis")
+        coq_file = request.FILES.get("certificate_of_quantity")
+
+        # Validate: if has_certificate_of_analysis is True, COA file is required
+        if slip.has_certificate_of_analysis and not coa_file:
+            return Response(
+                {"detail": "Certificate of Analysis attachment is required when has_certificate_of_analysis is true."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate: if has_certificate_of_quantity is True, COQ file is required
+        if slip.has_certificate_of_quantity and not coq_file:
+            return Response(
+                {"detail": "Certificate of Quantity attachment is required when has_certificate_of_quantity is true."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Save attachments (update_or_create to handle resubmission after rejection)
+        if coa_file:
+            ArrivalSlipAttachment.objects.update_or_create(
+                arrival_slip=slip,
+                attachment_type=AttachmentType.CERTIFICATE_OF_ANALYSIS,
+                defaults={"file": coa_file},
+            )
+
+        if coq_file:
+            ArrivalSlipAttachment.objects.update_or_create(
+                arrival_slip=slip,
+                attachment_type=AttachmentType.CERTIFICATE_OF_QUANTITY,
+                defaults={"file": coq_file},
             )
 
         slip.submit_to_qa(request.user)
