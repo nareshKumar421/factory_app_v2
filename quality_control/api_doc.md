@@ -192,6 +192,7 @@ POST /api/v1/quality-control/po-items/{po_item_id}/arrival-slip/
     "submitted_by": null,
     "submitted_by_name": null,
     "remarks": "",
+    "attachments": [],
     "created_at": "2026-02-04T10:00:00Z",
     "updated_at": "2026-02-04T10:00:00Z"
 }
@@ -209,9 +210,51 @@ GET /api/v1/quality-control/arrival-slips/{slip_id}/
 POST /api/v1/quality-control/arrival-slips/{slip_id}/submit/
 ```
 
+**Content-Type:** `multipart/form-data`
+
 **Permission:** `can_submit_arrival_slip`
 
-**Response:** Returns the updated arrival slip with `status: "SUBMITTED"`
+**Form Fields (files):**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `certificate_of_analysis` | file | Conditional | Required if `has_certificate_of_analysis` is `true` on the arrival slip |
+| `certificate_of_quantity` | file | Conditional | Required if `has_certificate_of_quantity` is `true` on the arrival slip |
+
+Both attachments are optional by default. They become required only when the corresponding boolean flag was set to `true` during arrival slip creation/update. Any file format is accepted.
+
+On resubmission (after rejection), existing attachments of the same type are replaced.
+
+**Response:** Returns the updated arrival slip with `status: "SUBMITTED"` and `attachments` array:
+```json
+{
+    "id": 1,
+    "status": "SUBMITTED",
+    "attachments": [
+        {
+            "id": 1,
+            "file": "/media/arrival_slip_attachments/coa_report.pdf",
+            "attachment_type": "CERTIFICATE_OF_ANALYSIS",
+            "uploaded_at": "2026-02-20T10:30:00Z"
+        },
+        {
+            "id": 2,
+            "file": "/media/arrival_slip_attachments/coq_report.pdf",
+            "attachment_type": "CERTIFICATE_OF_QUANTITY",
+            "uploaded_at": "2026-02-20T10:30:00Z"
+        }
+    ],
+    "..."
+}
+```
+
+**Error Responses:**
+
+| Status | Message |
+|--------|---------|
+| 400 | `Already submitted` |
+| 400 | `Certificate of Analysis attachment is required when has_certificate_of_analysis is true.` |
+| 400 | `Certificate of Quantity attachment is required when has_certificate_of_quantity is true.` |
 
 ---
 

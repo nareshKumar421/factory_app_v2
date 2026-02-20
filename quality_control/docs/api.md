@@ -216,15 +216,30 @@ GET /api/v1/quality-control/arrival-slips/{slip_id}/
 POST /api/v1/quality-control/arrival-slips/{slip_id}/submit/
 ```
 
+**Content-Type:** `multipart/form-data`
+
 **Permission Required:** `IsAuthenticated` + `HasCompanyContext` + `quality_control.can_submit_arrival_slip`
 
-**Response (200 OK):** Returns updated arrival slip data.
+**Form Fields (files):**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `certificate_of_analysis` | file | Conditional | Required if `has_certificate_of_analysis` is `true` on the arrival slip |
+| `certificate_of_quantity` | file | Conditional | Required if `has_certificate_of_quantity` is `true` on the arrival slip |
+
+Both attachments are optional by default. They become required only when the corresponding boolean flag was set to `true` during arrival slip creation/update. Any file format is accepted.
+
+On resubmission (after rejection), existing attachments of the same type are replaced.
+
+**Response (200 OK):** Returns updated arrival slip data including `attachments` array.
 
 **Error Responses:**
 
 | Status | Message |
 |--------|---------|
 | 400 | `Already submitted` |
+| 400 | `Certificate of Analysis attachment is required when has_certificate_of_analysis is true.` |
+| 400 | `Certificate of Quantity attachment is required when has_certificate_of_quantity is true.` |
 
 ---
 

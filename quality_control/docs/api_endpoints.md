@@ -122,9 +122,30 @@ POST /arrival-slips/{slip_id}/submit/
 ```
 **Permission:** `CanSubmitArrivalSlip`
 
-No body required. Updates:
+**Content-Type:** `multipart/form-data`
+
+**Form Fields (files):**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `certificate_of_analysis` | file | Conditional | Required if `has_certificate_of_analysis` is `true` on the arrival slip |
+| `certificate_of_quantity` | file | Conditional | Required if `has_certificate_of_quantity` is `true` on the arrival slip |
+
+Both attachments are optional by default. They become required only when the corresponding boolean flag was set to `true` during arrival slip creation/update. Any file format is accepted.
+
+On resubmission (after rejection), existing attachments of the same type are replaced.
+
+**Updates:**
 - Arrival slip status -> `SUBMITTED`
 - Vehicle entry status -> `ARRIVAL_SLIP_SUBMITTED`
+
+**Error Responses:**
+
+| Status | Message |
+|--------|---------|
+| 400 | `Already submitted` |
+| 400 | `Certificate of Analysis attachment is required when has_certificate_of_analysis is true.` |
+| 400 | `Certificate of Quantity attachment is required when has_certificate_of_quantity is true.` |
 
 ---
 
