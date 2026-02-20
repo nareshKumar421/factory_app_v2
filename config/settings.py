@@ -118,6 +118,10 @@ STATIC_URL = 'static/'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+# File upload limits (15 MB)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024
+
 # REST Framework
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
@@ -147,6 +151,7 @@ CSRF_TRUSTED_ORIGINS = [
     'http://192.168.1.63:3000',
     'http://localhost:8000',
     'http://127.0.0.1:8000',
+    'http://192.168.1.113:5173'
 ]
 
 # SAP HANA and Service Layer settings
