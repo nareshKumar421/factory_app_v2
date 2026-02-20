@@ -155,6 +155,7 @@ SL_PASSWORD = config('SL_PASSWORD')
 COMPANY_DB = {
     "JIVO_OIL": config('COMPANY_DB_JIVO_OIL'),
     "JIVO_MART": config('COMPANY_DB_JIVO_MART'),
+    "JIVO_BEVERAGES": config('COMPANY_DB_JIVO_BEVERAGES'),
 }
 
 # Firebase Cloud Messaging
