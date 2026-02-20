@@ -224,7 +224,7 @@ class ArrivalSlipListAPI(APIView):
         if status_filter:
             slips = slips.filter(status=status_filter)
 
-        serializer = MaterialArrivalSlipSerializer(slips, many=True)
+        serializer = MaterialArrivalSlipSerializer(slips, many=True, context={'request': request})
         return Response(serializer.data)
 
 
@@ -240,7 +240,7 @@ class ArrivalSlipCreateUpdateAPI(APIView):
         )
         try:
             slip = po_item.arrival_slip
-            serializer = MaterialArrivalSlipSerializer(slip)
+            serializer = MaterialArrivalSlipSerializer(slip, context={'request': request})
             return Response(serializer.data)
         except MaterialArrivalSlip.DoesNotExist:
             return Response(
@@ -287,7 +287,7 @@ class ArrivalSlipCreateUpdateAPI(APIView):
             slip.save()
 
         return Response(
-            MaterialArrivalSlipSerializer(slip).data,
+            MaterialArrivalSlipSerializer(slip, context={'request': request}).data,
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
         )
 
@@ -302,7 +302,7 @@ class ArrivalSlipDetailAPI(APIView):
             id=slip_id,
             po_item_receipt__po_receipt__vehicle_entry__company=request.company.company
         )
-        serializer = MaterialArrivalSlipSerializer(slip)
+        serializer = MaterialArrivalSlipSerializer(slip, context={'request': request})
         return Response(serializer.data)
 
 
@@ -371,7 +371,7 @@ class ArrivalSlipSubmitAPI(APIView):
             entry.save(update_fields=["status"])
 
         return Response(
-            MaterialArrivalSlipSerializer(slip).data,
+            MaterialArrivalSlipSerializer(slip, context={'request': request}).data,
             status=status.HTTP_200_OK
         )
 
