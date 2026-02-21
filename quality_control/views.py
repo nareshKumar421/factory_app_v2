@@ -390,7 +390,7 @@ class InspectionCreateUpdateAPI(APIView):
         )
         try:
             inspection = slip.inspection
-            serializer = RawMaterialInspectionSerializer(inspection)
+            serializer = RawMaterialInspectionSerializer(inspection, context={'request': request})
             return Response(serializer.data)
         except RawMaterialInspection.DoesNotExist:
             return Response(
@@ -468,7 +468,7 @@ class InspectionCreateUpdateAPI(APIView):
         update_entry_status(entry)
 
         return Response(
-            RawMaterialInspectionSerializer(inspection).data,
+            RawMaterialInspectionSerializer(inspection, context={'request': request}).data,
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
         )
 
@@ -483,7 +483,7 @@ class InspectionDetailAPI(APIView):
             id=inspection_id,
             arrival_slip__po_item_receipt__po_receipt__vehicle_entry__company=request.company.company
         )
-        serializer = RawMaterialInspectionSerializer(inspection)
+        serializer = RawMaterialInspectionSerializer(inspection, context={'request': request})
         return Response(serializer.data)
 
 
@@ -581,7 +581,7 @@ class InspectionSubmitAPI(APIView):
         update_entry_status(entry)
 
         return Response(
-            RawMaterialInspectionSerializer(inspection).data,
+            RawMaterialInspectionSerializer(inspection, context={'request': request}).data,
             status=status.HTTP_200_OK
         )
 
@@ -624,7 +624,7 @@ class InspectionApproveChemistAPI(APIView):
         update_entry_status(entry)
 
         return Response(
-            RawMaterialInspectionSerializer(inspection).data,
+            RawMaterialInspectionSerializer(inspection, context={'request': request}).data,
             status=status.HTTP_200_OK
         )
 
@@ -669,7 +669,7 @@ class InspectionApproveQAMAPI(APIView):
         update_entry_status(entry)
 
         return Response(
-            RawMaterialInspectionSerializer(inspection).data,
+            RawMaterialInspectionSerializer(inspection, context={'request': request}).data,
             status=status.HTTP_200_OK
         )
 
@@ -713,7 +713,7 @@ class InspectionRejectAPI(APIView):
         update_entry_status(entry)
 
         return Response(
-            RawMaterialInspectionSerializer(inspection).data,
+            RawMaterialInspectionSerializer(inspection, context={'request': request}).data,
             status=status.HTTP_200_OK
         )
 
@@ -733,7 +733,7 @@ def _get_inspection_queryset(company):
         "qa_chemist",
         "qam",
         "rejected_by",
-    ).prefetch_related("parameter_results__parameter_master")
+    ).prefetch_related("parameter_results__parameter_master", "arrival_slip__attachments")
 
 
 def _get_slip_list_queryset(company):
@@ -819,7 +819,7 @@ class InspectionAwaitingChemistAPI(APIView):
         qs = _get_inspection_queryset(request.company.company).filter(
             workflow_status=InspectionWorkflowStatus.SUBMITTED
         )
-        serializer = RawMaterialInspectionSerializer(qs, many=True)
+        serializer = RawMaterialInspectionSerializer(qs, many=True, context={'request': request})
         return Response(serializer.data)
 
 
@@ -831,7 +831,7 @@ class InspectionAwaitingQAMAPI(APIView):
         qs = _get_inspection_queryset(request.company.company).filter(
             workflow_status=InspectionWorkflowStatus.QA_CHEMIST_APPROVED
         )
-        serializer = RawMaterialInspectionSerializer(qs, many=True)
+        serializer = RawMaterialInspectionSerializer(qs, many=True, context={'request': request})
         return Response(serializer.data)
 
 
