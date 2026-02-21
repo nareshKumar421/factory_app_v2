@@ -249,7 +249,7 @@ class RawMaterialInspectionSerializer(serializers.ModelSerializer):
             "id", "arrival_slip", "arrival_slip_id", "arrival_slip_status",
             "po_item_receipt_id", "po_item_code", "item_name",
             "vehicle_entry_id", "entry_no",
-            "report_no", "internal_lot_no", "inspection_date",
+            "report_no", "internal_lot_no", "internal_report_no", "inspection_date",
             "description_of_material", "sap_code",
             "supplier_name", "manufacturer_name", "supplier_batch_lot_no",
             "unit_packing", "purchase_order_no", "invoice_bill_no",
@@ -292,9 +292,10 @@ class RawMaterialInspectionCreateSerializer(serializers.Serializer):
     sap_code = serializers.CharField(max_length=50, required=False, allow_blank=True)
     supplier_name = serializers.CharField(max_length=200)
     manufacturer_name = serializers.CharField(max_length=200, required=False, allow_blank=True)
-    supplier_batch_lot_no = serializers.CharField(max_length=100)
+    supplier_batch_lot_no = serializers.CharField(max_length=100, required=False, allow_blank=True)
     unit_packing = serializers.CharField(max_length=100, required=False, allow_blank=True)
-    purchase_order_no = serializers.CharField(max_length=50)
+    purchase_order_no = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    internal_report_no = serializers.CharField(max_length=100, required=False, allow_blank=True)
     invoice_bill_no = serializers.CharField(max_length=100, required=False, allow_blank=True)
     vehicle_no = serializers.CharField(max_length=50, required=False, allow_blank=True)
     material_type_id = serializers.IntegerField(required=False, allow_null=True)

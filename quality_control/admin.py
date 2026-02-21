@@ -217,7 +217,7 @@ class RawMaterialInspectionAdmin(admin.ModelAdmin):
         "inspection_date", "material_type", "created_at"
     )
     search_fields = (
-        "report_no", "internal_lot_no", "description_of_material",
+        "report_no", "internal_lot_no", "internal_report_no", "description_of_material",
         "supplier_name", "manufacturer_name", "purchase_order_no",
         "invoice_bill_no", "sap_code",
         "arrival_slip__po_item_receipt__po_item_code"
@@ -229,7 +229,7 @@ class RawMaterialInspectionAdmin(admin.ModelAdmin):
 
     fieldsets = (
         ("Identifiers", {
-            "fields": ("report_no", "internal_lot_no", "arrival_slip"),
+            "fields": ("report_no", "internal_lot_no", "internal_report_no", "arrival_slip"),
         }),
         ("Inspection Details", {
             "fields": ("inspection_date", "description_of_material", "sap_code", "material_type"),
