@@ -425,11 +425,13 @@ class InspectionCreateUpdateAPI(APIView):
                 company=request.company.company
             )
 
+        internal_lot_no = data.pop("internal_lot_no", None) or RawMaterialInspection.generate_lot_no()
+
         inspection, created = RawMaterialInspection.objects.get_or_create(
             arrival_slip=slip,
             defaults={
                 "report_no": RawMaterialInspection.generate_report_no(),
-                "internal_lot_no": RawMaterialInspection.generate_lot_no(),
+                "internal_lot_no": internal_lot_no,
                 "material_type": material_type,
                 "created_by": request.user,
                 **data
