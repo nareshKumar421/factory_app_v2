@@ -219,6 +219,9 @@ class InspectionListItemSerializer(serializers.ModelSerializer):
 
 class RawMaterialInspectionSerializer(serializers.ModelSerializer):
     parameter_results = InspectionParameterResultSerializer(many=True, read_only=True)
+    attachments = ArrivalSlipAttachmentSerializer(
+        source="arrival_slip.attachments", many=True, read_only=True
+    )
     qa_chemist_name = serializers.CharField(source="qa_chemist.full_name", read_only=True)
     qam_name = serializers.CharField(source="qam.full_name", read_only=True)
     rejected_by_name = serializers.CharField(source="rejected_by.full_name", read_only=True)
@@ -259,7 +262,7 @@ class RawMaterialInspectionSerializer(serializers.ModelSerializer):
             "qam", "qam_name", "qam_approved_at", "qam_remarks",
             "rejected_by", "rejected_by_name", "rejected_at",
             "workflow_status", "is_locked", "remarks",
-            "parameter_results", "created_at", "updated_at"
+            "parameter_results", "attachments", "created_at", "updated_at"
         ]
         read_only_fields = [
             "id", "arrival_slip_id", "arrival_slip_status",
