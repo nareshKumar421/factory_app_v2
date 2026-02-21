@@ -36,11 +36,14 @@ class RawMaterialInspection(BaseModel):
     # Supplier Information
     supplier_name = models.CharField(max_length=200)
     manufacturer_name = models.CharField(max_length=200, blank=True)
-    supplier_batch_lot_no = models.CharField(max_length=100)
+    supplier_batch_lot_no = models.CharField(max_length=100, blank=True)
 
     # Unit and PO Information
     unit_packing = models.CharField(max_length=100, blank=True)
-    purchase_order_no = models.CharField(max_length=50)
+    purchase_order_no = models.CharField(max_length=50, blank=True)
+
+    # Internal Report Number (manually filled by QC)
+    internal_report_no = models.CharField(max_length=100, blank=True)
     invoice_bill_no = models.CharField(max_length=100, blank=True)
 
     # Vehicle number for reference
