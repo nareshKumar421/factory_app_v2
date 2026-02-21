@@ -298,6 +298,7 @@ class RawMaterialInspectionCreateSerializer(serializers.Serializer):
     supplier_batch_lot_no = serializers.CharField(max_length=100, required=False, allow_blank=True)
     unit_packing = serializers.CharField(max_length=100, required=False, allow_blank=True)
     purchase_order_no = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    internal_lot_no = serializers.CharField(max_length=50, required=False, allow_blank=True)
     internal_report_no = serializers.CharField(max_length=100, required=False, allow_blank=True)
     invoice_bill_no = serializers.CharField(max_length=100, required=False, allow_blank=True)
     vehicle_no = serializers.CharField(max_length=50, required=False, allow_blank=True)
