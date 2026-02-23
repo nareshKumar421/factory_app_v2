@@ -181,6 +181,7 @@ class InspectionListItemSerializer(serializers.ModelSerializer):
     )
     workflow_status = serializers.SerializerMethodField()
     final_status = serializers.SerializerMethodField()
+    material_type_name = serializers.SerializerMethodField()
 
     class Meta:
         model = MaterialArrivalSlip
@@ -188,7 +189,7 @@ class InspectionListItemSerializer(serializers.ModelSerializer):
             "arrival_slip_id", "inspection_id",
             "entry_no", "report_no",
             "item_name", "party_name", "billing_qty", "billing_uom",
-            "workflow_status", "final_status",
+            "workflow_status", "final_status", "material_type_name",
             "created_at", "submitted_at",
         ]
 
@@ -213,6 +214,12 @@ class InspectionListItemSerializer(serializers.ModelSerializer):
     def get_final_status(self, obj):
         insp = self._get_inspection(obj)
         return insp.final_status if insp else None
+
+    def get_material_type_name(self, obj):
+        insp = self._get_inspection(obj)
+        if insp and insp.material_type:
+            return insp.material_type.name
+        return None
 
 
 # ==================== Raw Material Inspection Serializers ====================

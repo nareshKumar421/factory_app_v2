@@ -745,6 +745,7 @@ def _get_slip_list_queryset(company):
         status__in=[ArrivalSlipStatus.SUBMITTED, ArrivalSlipStatus.REJECTED],
     ).select_related(
         "inspection",
+        "inspection__material_type",
         "po_item_receipt",
         "po_item_receipt__po_receipt",
         "po_item_receipt__po_receipt__vehicle_entry",
