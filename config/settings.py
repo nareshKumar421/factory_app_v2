@@ -146,14 +146,6 @@ CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', cast=Csv())
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = list(default_headers) + ['Company-Code']
 
-# CSRF Trusted Origins (required for Django admin access from non-localhost)
-CSRF_TRUSTED_ORIGINS = [
-    'http://192.168.1.63:3000',
-    'http://localhost:8000',
-    'http://127.0.0.1:8000',
-    'http://192.168.1.113:5173'
-]
-
 # SAP HANA and Service Layer settings
 HANA_HOST = config('HANA_HOST')
 HANA_PORT = config('HANA_PORT', cast=int)
