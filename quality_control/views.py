@@ -75,11 +75,26 @@ class MaterialTypeListCreateAPI(APIView):
         serializer = MaterialTypeCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        material_type = MaterialType.objects.create(
+        # Check if a soft-deleted material type with the same code exists
+        existing = MaterialType.objects.filter(
             company=request.company.company,
-            created_by=request.user,
-            **serializer.validated_data
-        )
+            code=serializer.validated_data.get("code"),
+            is_active=False,
+        ).first()
+
+        if existing:
+            for key, value in serializer.validated_data.items():
+                setattr(existing, key, value)
+            existing.is_active = True
+            existing.updated_by = request.user
+            existing.save()
+            material_type = existing
+        else:
+            material_type = MaterialType.objects.create(
+                company=request.company.company,
+                created_by=request.user,
+                **serializer.validated_data
+            )
         return Response(
             MaterialTypeSerializer(material_type).data,
             status=status.HTTP_201_CREATED
@@ -154,11 +169,26 @@ class QCParameterListCreateAPI(APIView):
         serializer = QCParameterMasterCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        parameter = QCParameterMaster.objects.create(
+        # Check if a soft-deleted parameter with the same code exists
+        existing = QCParameterMaster.objects.filter(
             material_type=material_type,
-            created_by=request.user,
-            **serializer.validated_data
-        )
+            parameter_code=serializer.validated_data.get("parameter_code"),
+            is_active=False,
+        ).first()
+
+        if existing:
+            for key, value in serializer.validated_data.items():
+                setattr(existing, key, value)
+            existing.is_active = True
+            existing.updated_by = request.user
+            existing.save()
+            parameter = existing
+        else:
+            parameter = QCParameterMaster.objects.create(
+                material_type=material_type,
+                created_by=request.user,
+                **serializer.validated_data
+            )
         return Response(
             QCParameterMasterSerializer(parameter).data,
             status=status.HTTP_201_CREATED
