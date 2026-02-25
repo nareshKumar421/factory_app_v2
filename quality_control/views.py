@@ -39,6 +39,7 @@ from .serializers import (
 from .permissions import (
     CanManageArrivalSlip,
     CanSubmitArrivalSlip,
+    CanSendBackArrivalSlip,
     CanViewArrivalSlip,
     CanManageInspection,
     CanSubmitInspection,
@@ -363,15 +364,25 @@ class ArrivalSlipSubmitAPI(APIView):
         coa_file = request.FILES.get("certificate_of_analysis")
         coq_file = request.FILES.get("certificate_of_quantity")
 
+        # Check for existing attachments (e.g. resubmission after send-back)
+        has_existing_coa = slip.attachments.filter(
+            attachment_type=AttachmentType.CERTIFICATE_OF_ANALYSIS
+        ).exists()
+        has_existing_coq = slip.attachments.filter(
+            attachment_type=AttachmentType.CERTIFICATE_OF_QUANTITY
+        ).exists()
+
         # Validate: if has_certificate_of_analysis is True, COA file is required
-        if slip.has_certificate_of_analysis and not coa_file:
+        # (unless an attachment already exists from a previous submission)
+        if slip.has_certificate_of_analysis and not coa_file and not has_existing_coa:
             return Response(
                 {"detail": "Certificate of Analysis attachment is required when has_certificate_of_analysis is true."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         # Validate: if has_certificate_of_quantity is True, COQ file is required
-        if slip.has_certificate_of_quantity and not coq_file:
+        # (unless an attachment already exists from a previous submission)
+        if slip.has_certificate_of_quantity and not coq_file and not has_existing_coq:
             return Response(
                 {"detail": "Certificate of Quantity attachment is required when has_certificate_of_quantity is true."},
                 status=status.HTTP_400_BAD_REQUEST
@@ -399,6 +410,48 @@ class ArrivalSlipSubmitAPI(APIView):
         if entry.status in [GateEntryStatus.IN_PROGRESS, GateEntryStatus.ARRIVAL_SLIP_REJECTED]:
             entry.status = GateEntryStatus.ARRIVAL_SLIP_SUBMITTED
             entry.save(update_fields=["status"])
+
+        return Response(
+            MaterialArrivalSlipSerializer(slip, context={'request': request}).data,
+            status=status.HTTP_200_OK
+        )
+
+
+class ArrivalSlipSendBackAPI(APIView):
+    """Send arrival slip back to gate for correction.
+
+    Only allowed when the slip is SUBMITTED and no inspection has been started yet.
+    Resets the slip to DRAFT so the gate person can edit and resubmit.
+    """
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanSendBackArrivalSlip]
+
+    def post(self, request, slip_id):
+        slip = get_object_or_404(
+            MaterialArrivalSlip,
+            id=slip_id,
+            po_item_receipt__po_receipt__vehicle_entry__company=request.company.company
+        )
+
+        if slip.status != ArrivalSlipStatus.SUBMITTED:
+            return Response(
+                {"detail": "Only submitted arrival slips can be sent back"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Block if an inspection already exists for this slip
+        if hasattr(slip, "inspection"):
+            return Response(
+                {"detail": "Cannot send back — an inspection has already been started. Use inspection rejection instead."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        remarks = request.data.get("remarks", "")
+        slip.send_back_to_gate(user=request.user, remarks=remarks)
+
+        # Update vehicle entry status
+        entry = slip.po_item_receipt.po_receipt.vehicle_entry
+        entry.status = GateEntryStatus.ARRIVAL_SLIP_REJECTED
+        entry.save(update_fields=["status"])
 
         return Response(
             MaterialArrivalSlipSerializer(slip, context={'request': request}).data,

@@ -13,6 +13,7 @@ from .views import (
     ArrivalSlipCreateUpdateAPI,
     ArrivalSlipDetailAPI,
     ArrivalSlipSubmitAPI,
+    ArrivalSlipSendBackAPI,
     # Raw Material Inspection APIs
     InspectionPendingListAPI,
     InspectionCreateUpdateAPI,
@@ -79,6 +80,11 @@ urlpatterns = [
         "arrival-slips/<int:slip_id>/submit/",
         ArrivalSlipSubmitAPI.as_view(),
         name="arrival-slip-submit"
+    ),
+    path(
+        "arrival-slips/<int:slip_id>/send-back/",
+        ArrivalSlipSendBackAPI.as_view(),
+        name="arrival-slip-send-back"
     ),
 
     # ==================== Raw Material Inspection APIs ====================

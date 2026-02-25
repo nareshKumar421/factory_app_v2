@@ -68,10 +68,21 @@ class MaterialArrivalSlip(BaseModel):
 
     remarks = models.TextField(blank=True)
 
+    # Send-back tracking
+    sent_back_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sent_back_arrival_slips"
+    )
+    sent_back_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         ordering = ["-created_at"]
         permissions = [
             ("can_submit_arrival_slip", "Can submit arrival slip to QA"),
+            ("can_send_back_arrival_slip", "Can send arrival slip back to gate for correction"),
         ]
 
     def __str__(self):
@@ -87,6 +98,19 @@ class MaterialArrivalSlip(BaseModel):
         self.save(update_fields=[
             "is_submitted", "submitted_at", "submitted_by",
             "status", "in_time_to_qa", "updated_at"
+        ])
+
+    def send_back_to_gate(self, user, remarks=""):
+        """Send the arrival slip back to gate for correction (before inspection starts)."""
+        self.status = ArrivalSlipStatus.DRAFT
+        self.is_submitted = False
+        self.sent_back_by = user
+        self.sent_back_at = timezone.now()
+        if remarks:
+            self.remarks = remarks
+        self.save(update_fields=[
+            "status", "is_submitted", "sent_back_by",
+            "sent_back_at", "remarks", "updated_at",
         ])
 
     def reject_by_qa(self, remarks=""):
