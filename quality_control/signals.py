@@ -39,6 +39,37 @@ def notify_arrival_slip_submitted(sender, instance, **kwargs):
         logger.error(f"Failed to send arrival slip notification: {e}")
 
 
+@receiver(post_save, sender="quality_control.MaterialArrivalSlip")
+def notify_arrival_slip_sent_back(sender, instance, **kwargs):
+    """When arrival slip is sent back to gate -> notify qc_store group."""
+    slip = instance
+    if not (slip.status == "DRAFT" and slip.sent_back_by is not None):
+        return
+
+    try:
+        entry = slip.po_item_receipt.po_receipt.vehicle_entry
+        NotificationService.send_notification_by_auth_group(
+            group_name="qc_store",
+            title="Arrival Slip Sent Back for Correction",
+            body=(
+                f"Arrival slip for {slip.po_item_receipt.item_name} has been sent back for correction. "
+                f"Entry: {entry.entry_no}. Remarks: {slip.remarks or 'N/A'}"
+            ),
+            notification_type=NotificationType.ARRIVAL_SLIP_SENT_BACK,
+            click_action_url=f"/gate-entry/{entry.id}",
+            company=entry.company,
+            extra_data={
+                "reference_type": "arrival_slip",
+                "reference_id": str(slip.id),
+                "vehicle_entry_id": str(entry.id),
+                "entry_no": entry.entry_no,
+            },
+            created_by=slip.sent_back_by,
+        )
+    except Exception as e:
+        logger.error(f"Failed to send arrival slip sent-back notification: {e}")
+
+
 @receiver(post_save, sender="quality_control.RawMaterialInspection")
 def notify_inspection_workflow(sender, instance, **kwargs):
     """

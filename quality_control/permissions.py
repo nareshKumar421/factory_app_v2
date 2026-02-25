@@ -78,6 +78,13 @@ class CanApproveAsQAM(BasePermission):
         return request.user.has_perm("quality_control.can_approve_as_qam")
 
 
+class CanSendBackArrivalSlip(BasePermission):
+    """Permission to send arrival slip back to gate for correction."""
+
+    def has_permission(self, request, view):
+        return request.user.has_perm("quality_control.can_send_back_arrival_slip")
+
+
 class CanRejectInspection(BasePermission):
     """Permission to reject inspection."""
 
