@@ -41,7 +41,10 @@ class HanaPOReader:
                     T1."Quantity"      AS ordered_qty,
                     (T1."Quantity" - T1."OpenQty") AS received_qty,
                     T1."OpenQty"       AS remaining_qty,
-                    T1."unitMsr"       AS uom
+                    T1."unitMsr"       AS uom,
+                    T1."Price"         AS rate,
+                    T0."DocEntry"      AS doc_entry,
+                    T1."LineNum"       AS line_num
                 FROM "{schema}"."OPOR" T0
                 JOIN "{schema}"."POR1" T1 ON T0."DocEntry" = T1."DocEntry"
                 WHERE T0."CardCode" = ?
@@ -83,6 +86,8 @@ class HanaPOReader:
             po_number = row[0]
             supplier_code = row[1]
             supplier_name = row[2]
+            doc_entry = int(row[10])
+            line_num = int(row[11])
 
             item = POItemDTO(
                 po_item_code=row[3],
@@ -90,13 +95,16 @@ class HanaPOReader:
                 ordered_qty=float(row[5]),
                 received_qty=float(row[6]),
                 remaining_qty=float(row[7]),
-                uom=row[8]
+                uom=row[8],
+                rate=float(row[9]),
+                line_num=line_num
             )
 
             if po_number not in po_dict:
                 po_dict[po_number] = {
                     'supplier_code': supplier_code,
                     'supplier_name': supplier_name,
+                    'doc_entry': doc_entry,
                     'items': []
                 }
 
@@ -108,7 +116,8 @@ class HanaPOReader:
                 po_number=str(po_number),
                 supplier_code=po_data['supplier_code'],
                 supplier_name=po_data['supplier_name'],
-                items=po_data['items']
+                items=po_data['items'],
+                doc_entry=po_data['doc_entry']
             ))
 
         return po_list

@@ -18,12 +18,15 @@ class POItemSerializer(serializers.Serializer):
     received_qty = serializers.DecimalField(max_digits=12, decimal_places=3)
     remaining_qty = serializers.DecimalField(max_digits=12, decimal_places=3)
     uom = serializers.CharField()
+    rate = serializers.DecimalField(max_digits=18, decimal_places=6)
+    line_num = serializers.IntegerField()
 
 
 class POSerializer(serializers.Serializer):
     po_number = serializers.CharField()
     supplier_code = serializers.CharField()
     supplier_name = serializers.CharField()
+    doc_entry = serializers.IntegerField()
     items = POItemSerializer(many=True)
 
 
