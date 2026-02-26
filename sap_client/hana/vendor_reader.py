@@ -1,7 +1,7 @@
 import logging
 from typing import List
 
-import pyodbc
+from hdbcli import dbapi
 
 from .connection import HanaConnection
 from ..dtos import VendorDTO
@@ -21,7 +21,7 @@ class HanaVendorReader:
 
         try:
             conn = self.connection.connect()
-        except pyodbc.Error as e:
+        except dbapi.Error as e:
             logger.error(f"SAP HANA connection failed: {e}")
             raise SAPConnectionError(
                 "Unable to connect to SAP HANA. Please try again later."
@@ -52,12 +52,12 @@ class HanaVendorReader:
                 for row in rows
             ]
 
-        except pyodbc.ProgrammingError as e:
+        except dbapi.ProgrammingError as e:
             logger.error(f"SAP HANA query error for vendors: {e}")
             raise SAPDataError(
                 "Failed to retrieve vendor data from SAP. Invalid query or parameters."
             ) from e
-        except pyodbc.Error as e:
+        except dbapi.Error as e:
             logger.error(f"SAP HANA data error for vendors: {e}")
             raise SAPDataError(
                 "Failed to retrieve vendor data from SAP. Please try again later."

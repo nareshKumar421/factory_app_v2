@@ -118,6 +118,10 @@ STATIC_URL = 'static/'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+# File upload limits (15 MB)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024
+
 # REST Framework
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
@@ -155,6 +159,7 @@ SL_PASSWORD = config('SL_PASSWORD')
 COMPANY_DB = {
     "JIVO_OIL": config('COMPANY_DB_JIVO_OIL'),
     "JIVO_MART": config('COMPANY_DB_JIVO_MART'),
+    "JIVO_BEVERAGES": config('COMPANY_DB_JIVO_BEVERAGES'),
 }
 
 # Firebase Cloud Messaging

@@ -45,13 +45,20 @@ class TransporterNameListAPI(APIView):
 
 class TransporterDetailAPI(APIView):
     """
-    Get transporter details by ID
+    Get or update transporter details by ID
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request, id):
         transporter = get_object_or_404(Transporter, id=id)
         serializer = TransporterSerializer(transporter)
+        return Response(serializer.data)
+
+    def put(self, request, id):
+        transporter = get_object_or_404(Transporter, id=id)
+        serializer = TransporterSerializer(transporter, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(updated_by=request.user)
         return Response(serializer.data)
 
 
@@ -144,7 +151,7 @@ class VehicleEntryListCreateAPI(APIView):
             company=request.company.company,
             entry_type=entry_type,
             created_at__range=(from_date, to_date_inclusive)
-        ).order_by("-entry_time")
+        ).prefetch_related('po_receipts').order_by("-entry_time")
 
         return Response(
             VehicleEntrySerializer(
@@ -299,7 +306,7 @@ class VehicleEntryListByStatus(APIView):
             status=status_param,
             entry_type=entry_type,
             created_at__range=(from_date, to_date_inclusive)
-        ).order_by("-entry_time")
+        ).prefetch_related('po_receipts').order_by("-entry_time")
 
         return Response(
             VehicleEntrySerializer(

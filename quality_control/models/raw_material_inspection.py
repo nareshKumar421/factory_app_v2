@@ -36,11 +36,14 @@ class RawMaterialInspection(BaseModel):
     # Supplier Information
     supplier_name = models.CharField(max_length=200)
     manufacturer_name = models.CharField(max_length=200, blank=True)
-    supplier_batch_lot_no = models.CharField(max_length=100)
+    supplier_batch_lot_no = models.CharField(max_length=100, blank=True)
 
     # Unit and PO Information
     unit_packing = models.CharField(max_length=100, blank=True)
-    purchase_order_no = models.CharField(max_length=50)
+    purchase_order_no = models.CharField(max_length=50, blank=True)
+
+    # Internal Report Number (manually filled by QC)
+    internal_report_no = models.CharField(max_length=100, blank=True)
     invoice_bill_no = models.CharField(max_length=100, blank=True)
 
     # Vehicle number for reference
@@ -201,6 +204,20 @@ class RawMaterialInspection(BaseModel):
             "qam", "qam_approved_at", "qam_remarks",
             "workflow_status", "final_status", "is_locked", "updated_at"
         ])
+
+    def cancel_for_send_back(self, user, remarks=""):
+        """Soft-delete this draft inspection when the arrival slip is sent back to gate."""
+        self.is_active = False
+        self.is_locked = True
+        self.arrival_slip = None  # Free the OneToOne so a new inspection can be created
+        self.remarks = remarks or "Cancelled — arrival slip sent back to gate for correction"
+        self.updated_by = user
+        self.save(update_fields=[
+            "is_active", "is_locked", "arrival_slip",
+            "remarks", "updated_by", "updated_at",
+        ])
+        # Also soft-delete the parameter results
+        self.parameter_results.update(is_active=False)
 
     def reject(self, user, remarks=""):
         """Reject inspection - sends back to security guard."""

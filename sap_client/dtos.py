@@ -10,6 +10,8 @@ class POItemDTO:
     received_qty: float
     remaining_qty: float
     uom: str
+    rate: float = 0.0
+    line_num: int = 0
 
 
 @dataclass
@@ -18,6 +20,7 @@ class PODTO:
     supplier_code: str
     supplier_name: str
     items: List[POItemDTO]
+    doc_entry: int = 0
 
 
 @dataclass

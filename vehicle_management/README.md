@@ -134,6 +134,34 @@ GET /api/v1/vehicle-management/transporters/{id}/
 
 ---
 
+### 4. Update Transporter
+
+```
+PUT /api/v1/vehicle-management/transporters/{id}/
+```
+
+**Request Body:**
+```json
+{
+    "name": "ABC Transport Updated",
+    "contact_person": "Jane Doe",
+    "mobile_no": "9876543211"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+    "id": 1,
+    "name": "ABC Transport Updated",
+    "contact_person": "Jane Doe",
+    "mobile_no": "9876543211",
+    "created_at": "2026-01-01T10:00:00Z"
+}
+```
+
+---
+
 ## Vehicle APIs
 
 ### 4. List/Create Vehicles

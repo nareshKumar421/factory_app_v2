@@ -44,6 +44,7 @@ class NotificationType(models.TextChoices):
     SECURITY_CHECK_DONE = "SECURITY_CHECK_DONE", "Security Check Completed"
     WEIGHMENT_RECORDED = "WEIGHMENT_RECORDED", "Weighment Recorded"
     ARRIVAL_SLIP_SUBMITTED = "ARRIVAL_SLIP_SUBMITTED", "Arrival Slip Submitted"
+    ARRIVAL_SLIP_SENT_BACK = "ARRIVAL_SLIP_SENT_BACK", "Arrival Slip Sent Back to Gate"
     QC_INSPECTION_SUBMITTED = "QC_INSPECTION_SUBMITTED", "QC Inspection Submitted"
     QC_CHEMIST_APPROVED = "QC_CHEMIST_APPROVED", "QC Chemist Approved"
     QC_QAM_APPROVED = "QC_QAM_APPROVED", "QC QAM Approved"

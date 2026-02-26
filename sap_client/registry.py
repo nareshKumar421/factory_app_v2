@@ -32,6 +32,21 @@ COMPANY_SAP_REGISTRY = {
             "username": settings.SL_USER,
             "password": settings.SL_PASSWORD,
         }
+    },
+    "JIVO_BEVERAGES": {
+        "hana": {
+            "host": settings.HANA_HOST,
+            "port": settings.HANA_PORT,
+            "user": settings.HANA_USER,
+            "password": settings.HANA_PASSWORD,
+            "schema": settings.COMPANY_DB["JIVO_BEVERAGES"],
+        },
+        "service_layer": {
+            "base_url": settings.SL_URL,
+            "company_db": settings.COMPANY_DB["JIVO_BEVERAGES"],
+            "username": settings.SL_USER,
+            "password": settings.SL_PASSWORD,
+        }
     }
 }
 

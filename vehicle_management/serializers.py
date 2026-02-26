@@ -89,6 +89,10 @@ class VehicleEntrySerializer(serializers.ModelSerializer):
         representation["vehicle"] = VehicleSerializer(instance.vehicle).data
         representation["driver"] = DriverSerializer(instance.driver, context={"request": self.context.get("request")}).data
         representation["company"] = CompanySerializer(instance.company).data
+        representation["suppliers"] = [
+            {"supplier_code": po.supplier_code, "supplier_name": po.supplier_name}
+            for po in instance.po_receipts.all()
+        ]
         return representation
     
 

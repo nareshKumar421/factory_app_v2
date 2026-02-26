@@ -4,6 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser
 from django.shortcuts import get_object_or_404
 from django.db.models import Q, Count
 
@@ -18,6 +19,8 @@ from .models import (
     MaterialArrivalSlip,
     RawMaterialInspection,
     InspectionParameterResult,
+    ArrivalSlipAttachment,
+    AttachmentType,
 )
 from .serializers import (
     MaterialTypeSerializer,
@@ -36,6 +39,7 @@ from .serializers import (
 from .permissions import (
     CanManageArrivalSlip,
     CanSubmitArrivalSlip,
+    CanSendBackArrivalSlip,
     CanViewArrivalSlip,
     CanManageInspection,
     CanSubmitInspection,
@@ -72,11 +76,26 @@ class MaterialTypeListCreateAPI(APIView):
         serializer = MaterialTypeCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        material_type = MaterialType.objects.create(
+        # Check if a soft-deleted material type with the same code exists
+        existing = MaterialType.objects.filter(
             company=request.company.company,
-            created_by=request.user,
-            **serializer.validated_data
-        )
+            code=serializer.validated_data.get("code"),
+            is_active=False,
+        ).first()
+
+        if existing:
+            for key, value in serializer.validated_data.items():
+                setattr(existing, key, value)
+            existing.is_active = True
+            existing.updated_by = request.user
+            existing.save()
+            material_type = existing
+        else:
+            material_type = MaterialType.objects.create(
+                company=request.company.company,
+                created_by=request.user,
+                **serializer.validated_data
+            )
         return Response(
             MaterialTypeSerializer(material_type).data,
             status=status.HTTP_201_CREATED
@@ -151,11 +170,26 @@ class QCParameterListCreateAPI(APIView):
         serializer = QCParameterMasterCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        parameter = QCParameterMaster.objects.create(
+        # Check if a soft-deleted parameter with the same code exists
+        existing = QCParameterMaster.objects.filter(
             material_type=material_type,
-            created_by=request.user,
-            **serializer.validated_data
-        )
+            parameter_code=serializer.validated_data.get("parameter_code"),
+            is_active=False,
+        ).first()
+
+        if existing:
+            for key, value in serializer.validated_data.items():
+                setattr(existing, key, value)
+            existing.is_active = True
+            existing.updated_by = request.user
+            existing.save()
+            parameter = existing
+        else:
+            parameter = QCParameterMaster.objects.create(
+                material_type=material_type,
+                created_by=request.user,
+                **serializer.validated_data
+            )
         return Response(
             QCParameterMasterSerializer(parameter).data,
             status=status.HTTP_201_CREATED
@@ -221,7 +255,7 @@ class ArrivalSlipListAPI(APIView):
         if status_filter:
             slips = slips.filter(status=status_filter)
 
-        serializer = MaterialArrivalSlipSerializer(slips, many=True)
+        serializer = MaterialArrivalSlipSerializer(slips, many=True, context={'request': request})
         return Response(serializer.data)
 
 
@@ -237,7 +271,7 @@ class ArrivalSlipCreateUpdateAPI(APIView):
         )
         try:
             slip = po_item.arrival_slip
-            serializer = MaterialArrivalSlipSerializer(slip)
+            serializer = MaterialArrivalSlipSerializer(slip, context={'request': request})
             return Response(serializer.data)
         except MaterialArrivalSlip.DoesNotExist:
             return Response(
@@ -284,7 +318,7 @@ class ArrivalSlipCreateUpdateAPI(APIView):
             slip.save()
 
         return Response(
-            MaterialArrivalSlipSerializer(slip).data,
+            MaterialArrivalSlipSerializer(slip, context={'request': request}).data,
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
         )
 
@@ -299,13 +333,19 @@ class ArrivalSlipDetailAPI(APIView):
             id=slip_id,
             po_item_receipt__po_receipt__vehicle_entry__company=request.company.company
         )
-        serializer = MaterialArrivalSlipSerializer(slip)
+        serializer = MaterialArrivalSlipSerializer(slip, context={'request': request})
         return Response(serializer.data)
 
 
 class ArrivalSlipSubmitAPI(APIView):
-    """Submit arrival slip to QA"""
+    """Submit arrival slip to QA.
+
+    Accepts optional file attachments via multipart/form-data:
+    - certificate_of_analysis: file (required if has_certificate_of_analysis is true on the slip)
+    - certificate_of_quantity: file (required if has_certificate_of_quantity is true on the slip)
+    """
     permission_classes = [IsAuthenticated, HasCompanyContext, CanSubmitArrivalSlip]
+    parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request, slip_id):
         slip = get_object_or_404(
@@ -320,6 +360,49 @@ class ArrivalSlipSubmitAPI(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Get optional file attachments
+        coa_file = request.FILES.get("certificate_of_analysis")
+        coq_file = request.FILES.get("certificate_of_quantity")
+
+        # Check for existing attachments (e.g. resubmission after send-back)
+        has_existing_coa = slip.attachments.filter(
+            attachment_type=AttachmentType.CERTIFICATE_OF_ANALYSIS
+        ).exists()
+        has_existing_coq = slip.attachments.filter(
+            attachment_type=AttachmentType.CERTIFICATE_OF_QUANTITY
+        ).exists()
+
+        # Validate: if has_certificate_of_analysis is True, COA file is required
+        # (unless an attachment already exists from a previous submission)
+        if slip.has_certificate_of_analysis and not coa_file and not has_existing_coa:
+            return Response(
+                {"detail": "Certificate of Analysis attachment is required when has_certificate_of_analysis is true."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate: if has_certificate_of_quantity is True, COQ file is required
+        # (unless an attachment already exists from a previous submission)
+        if slip.has_certificate_of_quantity and not coq_file and not has_existing_coq:
+            return Response(
+                {"detail": "Certificate of Quantity attachment is required when has_certificate_of_quantity is true."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Save attachments (update_or_create to handle resubmission after rejection)
+        if coa_file:
+            ArrivalSlipAttachment.objects.update_or_create(
+                arrival_slip=slip,
+                attachment_type=AttachmentType.CERTIFICATE_OF_ANALYSIS,
+                defaults={"file": coa_file},
+            )
+
+        if coq_file:
+            ArrivalSlipAttachment.objects.update_or_create(
+                arrival_slip=slip,
+                attachment_type=AttachmentType.CERTIFICATE_OF_QUANTITY,
+                defaults={"file": coq_file},
+            )
+
         slip.submit_to_qa(request.user)
 
         # Update vehicle entry status
@@ -329,7 +412,54 @@ class ArrivalSlipSubmitAPI(APIView):
             entry.save(update_fields=["status"])
 
         return Response(
-            MaterialArrivalSlipSerializer(slip).data,
+            MaterialArrivalSlipSerializer(slip, context={'request': request}).data,
+            status=status.HTTP_200_OK
+        )
+
+
+class ArrivalSlipSendBackAPI(APIView):
+    """Send arrival slip back to gate for correction.
+
+    Allowed when the slip is SUBMITTED and the inspection either doesn't exist
+    or is still in DRAFT (not yet submitted to chemist).
+    If a draft inspection exists, it is soft-deleted (is_active=False).
+    """
+    permission_classes = [IsAuthenticated, HasCompanyContext, CanSendBackArrivalSlip]
+
+    def post(self, request, slip_id):
+        slip = get_object_or_404(
+            MaterialArrivalSlip,
+            id=slip_id,
+            po_item_receipt__po_receipt__vehicle_entry__company=request.company.company
+        )
+
+        if slip.status != ArrivalSlipStatus.SUBMITTED:
+            return Response(
+                {"detail": "Only submitted arrival slips can be sent back"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Block if inspection has already been submitted to chemist
+        if hasattr(slip, "inspection"):
+            inspection = slip.inspection
+            if inspection.workflow_status != InspectionWorkflowStatus.DRAFT:
+                return Response(
+                    {"detail": "Cannot send back — inspection has already been submitted. Use inspection rejection instead."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            # Soft-delete the draft inspection
+            inspection.cancel_for_send_back(user=request.user, remarks=request.data.get("remarks", ""))
+
+        remarks = request.data.get("remarks", "")
+        slip.send_back_to_gate(user=request.user, remarks=remarks)
+
+        # Update vehicle entry status
+        entry = slip.po_item_receipt.po_receipt.vehicle_entry
+        entry.status = GateEntryStatus.ARRIVAL_SLIP_REJECTED
+        entry.save(update_fields=["status"])
+
+        return Response(
+            MaterialArrivalSlipSerializer(slip, context={'request': request}).data,
             status=status.HTTP_200_OK
         )
 
@@ -348,7 +478,7 @@ class InspectionCreateUpdateAPI(APIView):
         )
         try:
             inspection = slip.inspection
-            serializer = RawMaterialInspectionSerializer(inspection)
+            serializer = RawMaterialInspectionSerializer(inspection, context={'request': request})
             return Response(serializer.data)
         except RawMaterialInspection.DoesNotExist:
             return Response(
@@ -383,11 +513,13 @@ class InspectionCreateUpdateAPI(APIView):
                 company=request.company.company
             )
 
+        internal_lot_no = data.pop("internal_lot_no", None) or RawMaterialInspection.generate_lot_no()
+
         inspection, created = RawMaterialInspection.objects.get_or_create(
             arrival_slip=slip,
             defaults={
                 "report_no": RawMaterialInspection.generate_report_no(),
-                "internal_lot_no": RawMaterialInspection.generate_lot_no(),
+                "internal_lot_no": internal_lot_no,
                 "material_type": material_type,
                 "created_by": request.user,
                 **data
@@ -426,7 +558,7 @@ class InspectionCreateUpdateAPI(APIView):
         update_entry_status(entry)
 
         return Response(
-            RawMaterialInspectionSerializer(inspection).data,
+            RawMaterialInspectionSerializer(inspection, context={'request': request}).data,
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
         )
 
@@ -441,7 +573,7 @@ class InspectionDetailAPI(APIView):
             id=inspection_id,
             arrival_slip__po_item_receipt__po_receipt__vehicle_entry__company=request.company.company
         )
-        serializer = RawMaterialInspectionSerializer(inspection)
+        serializer = RawMaterialInspectionSerializer(inspection, context={'request': request})
         return Response(serializer.data)
 
 
@@ -539,7 +671,7 @@ class InspectionSubmitAPI(APIView):
         update_entry_status(entry)
 
         return Response(
-            RawMaterialInspectionSerializer(inspection).data,
+            RawMaterialInspectionSerializer(inspection, context={'request': request}).data,
             status=status.HTTP_200_OK
         )
 
@@ -582,7 +714,7 @@ class InspectionApproveChemistAPI(APIView):
         update_entry_status(entry)
 
         return Response(
-            RawMaterialInspectionSerializer(inspection).data,
+            RawMaterialInspectionSerializer(inspection, context={'request': request}).data,
             status=status.HTTP_200_OK
         )
 
@@ -627,7 +759,7 @@ class InspectionApproveQAMAPI(APIView):
         update_entry_status(entry)
 
         return Response(
-            RawMaterialInspectionSerializer(inspection).data,
+            RawMaterialInspectionSerializer(inspection, context={'request': request}).data,
             status=status.HTTP_200_OK
         )
 
@@ -671,7 +803,7 @@ class InspectionRejectAPI(APIView):
         update_entry_status(entry)
 
         return Response(
-            RawMaterialInspectionSerializer(inspection).data,
+            RawMaterialInspectionSerializer(inspection, context={'request': request}).data,
             status=status.HTTP_200_OK
         )
 
@@ -691,7 +823,7 @@ def _get_inspection_queryset(company):
         "qa_chemist",
         "qam",
         "rejected_by",
-    ).prefetch_related("parameter_results__parameter_master")
+    ).prefetch_related("parameter_results__parameter_master", "arrival_slip__attachments")
 
 
 def _get_slip_list_queryset(company):
@@ -701,6 +833,7 @@ def _get_slip_list_queryset(company):
         status__in=[ArrivalSlipStatus.SUBMITTED, ArrivalSlipStatus.REJECTED],
     ).select_related(
         "inspection",
+        "inspection__material_type",
         "po_item_receipt",
         "po_item_receipt__po_receipt",
         "po_item_receipt__po_receipt__vehicle_entry",
@@ -777,7 +910,7 @@ class InspectionAwaitingChemistAPI(APIView):
         qs = _get_inspection_queryset(request.company.company).filter(
             workflow_status=InspectionWorkflowStatus.SUBMITTED
         )
-        serializer = RawMaterialInspectionSerializer(qs, many=True)
+        serializer = RawMaterialInspectionSerializer(qs, many=True, context={'request': request})
         return Response(serializer.data)
 
 
@@ -789,7 +922,7 @@ class InspectionAwaitingQAMAPI(APIView):
         qs = _get_inspection_queryset(request.company.company).filter(
             workflow_status=InspectionWorkflowStatus.QA_CHEMIST_APPROVED
         )
-        serializer = RawMaterialInspectionSerializer(qs, many=True)
+        serializer = RawMaterialInspectionSerializer(qs, many=True, context={'request': request})
         return Response(serializer.data)
 
 
