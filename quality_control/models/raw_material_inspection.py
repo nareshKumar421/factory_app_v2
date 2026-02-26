@@ -205,6 +205,20 @@ class RawMaterialInspection(BaseModel):
             "workflow_status", "final_status", "is_locked", "updated_at"
         ])
 
+    def cancel_for_send_back(self, user, remarks=""):
+        """Soft-delete this draft inspection when the arrival slip is sent back to gate."""
+        self.is_active = False
+        self.is_locked = True
+        self.arrival_slip = None  # Free the OneToOne so a new inspection can be created
+        self.remarks = remarks or "Cancelled — arrival slip sent back to gate for correction"
+        self.updated_by = user
+        self.save(update_fields=[
+            "is_active", "is_locked", "arrival_slip",
+            "remarks", "updated_by", "updated_at",
+        ])
+        # Also soft-delete the parameter results
+        self.parameter_results.update(is_active=False)
+
     def reject(self, user, remarks=""):
         """Reject inspection - sends back to security guard."""
         self.final_status = InspectionStatus.REJECTED
