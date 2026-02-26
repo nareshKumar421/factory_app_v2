@@ -32,4 +32,9 @@ urlpatterns = [
 
     # Dashboard
     path("dashboard/", dashboard_stats),
+
+    # Bulk Entry/Exit
+    path("entry/bulk-create/", bulk_create_entry),
+    path("entry/bulk-exit/", bulk_exit_entry),
+    path("contractor/<int:contractor_id>/labours-status/", contractor_labours_for_entry),
 ]
