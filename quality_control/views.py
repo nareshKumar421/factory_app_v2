@@ -420,8 +420,9 @@ class ArrivalSlipSubmitAPI(APIView):
 class ArrivalSlipSendBackAPI(APIView):
     """Send arrival slip back to gate for correction.
 
-    Only allowed when the slip is SUBMITTED and no inspection has been started yet.
-    Resets the slip to DRAFT so the gate person can edit and resubmit.
+    Allowed when the slip is SUBMITTED and the inspection either doesn't exist
+    or is still in DRAFT (not yet submitted to chemist).
+    If a draft inspection exists, it is soft-deleted (is_active=False).
     """
     permission_classes = [IsAuthenticated, HasCompanyContext, CanSendBackArrivalSlip]
 
@@ -438,12 +439,16 @@ class ArrivalSlipSendBackAPI(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Block if an inspection already exists for this slip
+        # Block if inspection has already been submitted to chemist
         if hasattr(slip, "inspection"):
-            return Response(
-                {"detail": "Cannot send back — an inspection has already been started. Use inspection rejection instead."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            inspection = slip.inspection
+            if inspection.workflow_status != InspectionWorkflowStatus.DRAFT:
+                return Response(
+                    {"detail": "Cannot send back — inspection has already been submitted. Use inspection rejection instead."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            # Soft-delete the draft inspection
+            inspection.cancel_for_send_back(user=request.user, remarks=request.data.get("remarks", ""))
 
         remarks = request.data.get("remarks", "")
         slip.send_back_to_gate(user=request.user, remarks=remarks)
