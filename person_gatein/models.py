@@ -157,6 +157,7 @@ class EntryLog(models.Model):
     )
 
     entry_time = models.DateTimeField(auto_now_add=True)
+    actual_entry_time = models.DateTimeField(null=True, blank=True)
     exit_time = models.DateTimeField(null=True, blank=True)
 
     # Business
