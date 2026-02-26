@@ -76,7 +76,7 @@ class EntryService:
             entry_data["labour"] = labour_obj
 
         # Copy optional fields
-        optional_fields = ["purpose", "vehicle_no", "remarks"]
+        optional_fields = ["purpose", "vehicle_no", "remarks", "actual_entry_time"]
         for field in optional_fields:
             if data.get(field):
                 entry_data[field] = data[field]
