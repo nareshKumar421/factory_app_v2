@@ -10,6 +10,10 @@ from datetime import datetime, timedelta
 
 from .models import *
 from .serializers import *
+from .serializers import (
+    BulkLabourEntryRequestSerializer,
+    BulkLabourExitRequestSerializer,
+)
 from .services.entry_service import EntryService
 from .permissions import (
     CanViewPersonType,
@@ -514,5 +518,91 @@ def check_person_status(request):
                 "permit_valid_till": labour.permit_valid_till
             })
 
+    except Exception as e:
+        return Response({"error": str(e)}, status=400)
+
+
+# -------------------------
+# Bulk Entry / Exit APIs
+# -------------------------
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated, HasCompanyContext, CanCreateEntry])
+def bulk_create_entry(request):
+    """Create entry logs for multiple labours of a contractor at once."""
+    serializer = BulkLabourEntryRequestSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response({"error": serializer.errors}, status=400)
+
+    try:
+        result = EntryService.bulk_create_entry(
+            serializer.validated_data, request.user
+        )
+        return Response({
+            "total_requested": result["total_requested"],
+            "total_created": result["total_created"],
+            "total_skipped": result["total_skipped"],
+            "results": result["results"],
+            "entries": EntryLogSerializer(result["entries"], many=True).data,
+        })
+    except Exception as e:
+        return Response({"error": str(e)}, status=400)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated, HasCompanyContext, CanExitEntry])
+def bulk_exit_entry(request):
+    """Mark exit for multiple labours of a contractor at once."""
+    serializer = BulkLabourExitRequestSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response({"error": serializer.errors}, status=400)
+
+    try:
+        result = EntryService.bulk_exit_entry(serializer.validated_data)
+        return Response({
+            "total_requested": result["total_requested"],
+            "total_exited": result["total_exited"],
+            "total_skipped": result["total_skipped"],
+            "results": result["results"],
+        })
+    except Exception as e:
+        return Response({"error": str(e)}, status=400)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated, HasCompanyContext, CanViewEntry])
+def contractor_labours_for_entry(request, contractor_id):
+    """Get all active labours for a contractor with their current entry status."""
+    try:
+        contractor = get_object_or_404(Contractor, pk=contractor_id, is_active=True)
+        labours = Labour.objects.filter(
+            contractor=contractor, is_active=True
+        ).order_by("name")
+
+        inside_labour_ids = set(
+            EntryLog.objects.filter(
+                labour__in=labours, status="IN"
+            ).values_list("labour_id", flat=True)
+        )
+
+        results = []
+        for labour in labours:
+            results.append({
+                "id": labour.id,
+                "name": labour.name,
+                "mobile": labour.mobile,
+                "skill_type": labour.skill_type,
+                "photo": labour.photo.url if labour.photo else None,
+                "permit_valid_till": labour.permit_valid_till,
+                "is_inside": labour.id in inside_labour_ids,
+            })
+
+        return Response({
+            "contractor_id": contractor.id,
+            "contractor_name": contractor.contractor_name,
+            "total_active_labours": len(results),
+            "total_currently_inside": len(inside_labour_ids),
+            "labours": results,
+        })
     except Exception as e:
         return Response({"error": str(e)}, status=400)
