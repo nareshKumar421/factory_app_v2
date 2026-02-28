@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import GRPOPosting, GRPOLinePosting
+from .models import GRPOPosting, GRPOLinePosting, GRPOAttachment
 
 
 class GRPOLineDetailSerializer(serializers.Serializer):
@@ -146,8 +146,39 @@ class GRPOLinePostingSerializer(serializers.ModelSerializer):
         ]
 
 
+class GRPOAttachmentSerializer(serializers.ModelSerializer):
+    """Serializer for listing GRPO attachments"""
+    class Meta:
+        model = GRPOAttachment
+        fields = [
+            'id',
+            'file',
+            'original_filename',
+            'sap_attachment_status',
+            'sap_absolute_entry',
+            'sap_error_message',
+            'uploaded_at',
+            'uploaded_by',
+        ]
+        read_only_fields = [
+            'id',
+            'original_filename',
+            'sap_attachment_status',
+            'sap_absolute_entry',
+            'sap_error_message',
+            'uploaded_at',
+            'uploaded_by',
+        ]
+
+
+class GRPOAttachmentUploadSerializer(serializers.Serializer):
+    """Serializer for uploading GRPO attachments"""
+    file = serializers.FileField(required=True)
+
+
 class GRPOPostingSerializer(serializers.ModelSerializer):
     lines = GRPOLinePostingSerializer(many=True, read_only=True)
+    attachments = GRPOAttachmentSerializer(many=True, read_only=True)
     po_number = serializers.CharField(source='po_receipt.po_number', read_only=True)
     entry_no = serializers.CharField(source='vehicle_entry.entry_no', read_only=True)
 
@@ -167,7 +198,8 @@ class GRPOPostingSerializer(serializers.ModelSerializer):
             'posted_at',
             'posted_by',
             'created_at',
-            'lines'
+            'lines',
+            'attachments',
         ]
 
 

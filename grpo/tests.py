@@ -1,9 +1,11 @@
 from decimal import Decimal
 from unittest.mock import patch, MagicMock
+from io import BytesIO
 
 from django.test import TestCase
 from django.urls import reverse
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
 
@@ -12,7 +14,7 @@ from company.models import Company
 from driver_management.models import VehicleEntry, Driver
 from vehicle_management.models import Vehicle, VehicleType
 from raw_material_gatein.models import POReceipt, POItemReceipt
-from grpo.models import GRPOPosting, GRPOLinePosting, GRPOStatus
+from grpo.models import GRPOPosting, GRPOLinePosting, GRPOStatus, GRPOAttachment, SAPAttachmentStatus
 from grpo.services import GRPOService
 
 User = get_user_model()
@@ -621,3 +623,429 @@ class GRPOSerializerTests(TestCase):
 
         serializer = ExtraChargeInputSerializer(data=data)
         self.assertTrue(serializer.is_valid(), serializer.errors)
+
+
+class GRPOAttachmentModelTests(TestCase):
+    """Tests for GRPOAttachment model"""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.company = Company.objects.create(name="Test Company", code="TC001")
+        cls.user = User.objects.create_user(
+            email="testuser@example.com", password="testpass123",
+            full_name="Test User", employee_code="EMP001"
+        )
+        cls.vehicle_type = VehicleType.objects.create(name="TRUCK")
+        cls.vehicle = Vehicle.objects.create(
+            vehicle_number="MH12AB1234", vehicle_type=cls.vehicle_type
+        )
+        cls.driver = Driver.objects.create(
+            name="Test Driver", mobile_no="9876543210", license_no="DL123456"
+        )
+        cls.vehicle_entry = VehicleEntry.objects.create(
+            entry_no="VE-2024-001", company=cls.company,
+            vehicle=cls.vehicle, driver=cls.driver,
+            entry_type="RAW_MATERIAL", status=GateEntryStatus.COMPLETED
+        )
+        cls.po_receipt = POReceipt.objects.create(
+            vehicle_entry=cls.vehicle_entry, po_number="PO-001",
+            supplier_code="SUP001", supplier_name="Test Supplier",
+            sap_doc_entry=12345
+        )
+        cls.grpo_posting = GRPOPosting.objects.create(
+            vehicle_entry=cls.vehicle_entry, po_receipt=cls.po_receipt,
+            status=GRPOStatus.POSTED, sap_doc_entry=12345, sap_doc_num=456
+        )
+
+    def test_attachment_creation(self):
+        """Test GRPOAttachment model creation"""
+        test_file = SimpleUploadedFile("invoice.pdf", b"file_content", content_type="application/pdf")
+        attachment = GRPOAttachment.objects.create(
+            grpo_posting=self.grpo_posting,
+            file=test_file,
+            original_filename="invoice.pdf",
+            sap_attachment_status=SAPAttachmentStatus.PENDING,
+            uploaded_by=self.user
+        )
+        self.assertEqual(attachment.original_filename, "invoice.pdf")
+        self.assertEqual(attachment.sap_attachment_status, SAPAttachmentStatus.PENDING)
+        self.assertIsNone(attachment.sap_absolute_entry)
+        # Clean up file
+        attachment.file.delete(save=False)
+
+    def test_attachment_str(self):
+        """Test GRPOAttachment string representation"""
+        test_file = SimpleUploadedFile("report.pdf", b"content", content_type="application/pdf")
+        attachment = GRPOAttachment.objects.create(
+            grpo_posting=self.grpo_posting,
+            file=test_file,
+            original_filename="report.pdf",
+        )
+        self.assertIn("report.pdf", str(attachment))
+        attachment.file.delete(save=False)
+
+    def test_attachment_cascade_delete(self):
+        """Test attachments are deleted when GRPO posting is deleted"""
+        # Create a new posting for this test
+        po_receipt2 = POReceipt.objects.create(
+            vehicle_entry=self.vehicle_entry, po_number="PO-002",
+            supplier_code="SUP001", supplier_name="Test Supplier",
+            sap_doc_entry=99999
+        )
+        posting = GRPOPosting.objects.create(
+            vehicle_entry=self.vehicle_entry, po_receipt=po_receipt2,
+            status=GRPOStatus.POSTED, sap_doc_entry=99999
+        )
+        test_file = SimpleUploadedFile("test.pdf", b"content")
+        GRPOAttachment.objects.create(
+            grpo_posting=posting, file=test_file,
+            original_filename="test.pdf"
+        )
+        posting_id = posting.id
+        self.assertEqual(GRPOAttachment.objects.filter(grpo_posting_id=posting_id).count(), 1)
+        posting.delete()
+        self.assertEqual(GRPOAttachment.objects.filter(grpo_posting_id=posting_id).count(), 0)
+
+
+class GRPOAttachmentServiceTests(TestCase):
+    """Tests for GRPO attachment service methods"""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.company = Company.objects.create(name="Test Company", code="TC001")
+        cls.user = User.objects.create_user(
+            email="testuser@example.com", password="testpass123",
+            full_name="Test User", employee_code="EMP001"
+        )
+        cls.vehicle_type = VehicleType.objects.create(name="TRUCK")
+        cls.vehicle = Vehicle.objects.create(
+            vehicle_number="MH12AB1234", vehicle_type=cls.vehicle_type
+        )
+        cls.driver = Driver.objects.create(
+            name="Test Driver", mobile_no="9876543210", license_no="DL123456"
+        )
+        cls.vehicle_entry = VehicleEntry.objects.create(
+            entry_no="VE-2024-001", company=cls.company,
+            vehicle=cls.vehicle, driver=cls.driver,
+            entry_type="RAW_MATERIAL", status=GateEntryStatus.COMPLETED
+        )
+        cls.po_receipt = POReceipt.objects.create(
+            vehicle_entry=cls.vehicle_entry, po_number="PO-001",
+            supplier_code="SUP001", supplier_name="Test Supplier",
+            sap_doc_entry=12345
+        )
+
+    def _create_posted_grpo(self):
+        """Helper to create a POSTED GRPO"""
+        grpo, _ = GRPOPosting.objects.get_or_create(
+            vehicle_entry=self.vehicle_entry,
+            po_receipt=self.po_receipt,
+            defaults={
+                "status": GRPOStatus.POSTED,
+                "sap_doc_entry": 12345,
+                "sap_doc_num": 456,
+                "posted_by": self.user
+            }
+        )
+        if grpo.status != GRPOStatus.POSTED:
+            grpo.status = GRPOStatus.POSTED
+            grpo.sap_doc_entry = 12345
+            grpo.sap_doc_num = 456
+            grpo.save()
+        return grpo
+
+    @patch('grpo.services.SAPClient')
+    def test_upload_attachment_success(self, mock_sap_client):
+        """Test successful attachment upload and linking"""
+        mock_instance = MagicMock()
+        mock_instance.upload_attachment.return_value = {"AbsoluteEntry": 789}
+        mock_instance.link_attachment_to_grpo.return_value = {
+            "DocEntry": 12345, "AttachmentEntry": 789
+        }
+        mock_sap_client.return_value = mock_instance
+
+        grpo = self._create_posted_grpo()
+        service = GRPOService(company_code="TC001")
+        test_file = SimpleUploadedFile("invoice.pdf", b"pdf_content", content_type="application/pdf")
+
+        attachment = service.upload_grpo_attachment(
+            grpo_posting_id=grpo.id,
+            file=test_file,
+            user=self.user
+        )
+
+        self.assertEqual(attachment.sap_attachment_status, SAPAttachmentStatus.LINKED)
+        self.assertEqual(attachment.sap_absolute_entry, 789)
+        self.assertEqual(attachment.original_filename, "invoice.pdf")
+        self.assertIsNone(attachment.sap_error_message)
+
+        # Verify SAP calls
+        mock_instance.upload_attachment.assert_called_once()
+        mock_instance.link_attachment_to_grpo.assert_called_once_with(
+            doc_entry=12345, absolute_entry=789
+        )
+
+        # Clean up
+        attachment.file.delete(save=False)
+
+    @patch('grpo.services.SAPClient')
+    def test_upload_attachment_sap_failure(self, mock_sap_client):
+        """Test attachment upload when SAP fails - file should be saved locally"""
+        from sap_client.exceptions import SAPConnectionError
+
+        mock_instance = MagicMock()
+        mock_instance.upload_attachment.side_effect = SAPConnectionError("SAP unavailable")
+        mock_sap_client.return_value = mock_instance
+
+        grpo = self._create_posted_grpo()
+        service = GRPOService(company_code="TC001")
+        test_file = SimpleUploadedFile("invoice.pdf", b"pdf_content")
+
+        attachment = service.upload_grpo_attachment(
+            grpo_posting_id=grpo.id,
+            file=test_file,
+            user=self.user
+        )
+
+        # File should be saved locally even though SAP failed
+        self.assertEqual(attachment.sap_attachment_status, SAPAttachmentStatus.FAILED)
+        self.assertIsNotNone(attachment.sap_error_message)
+        self.assertIn("SAP unavailable", attachment.sap_error_message)
+        self.assertTrue(attachment.file)
+
+        # Clean up
+        attachment.file.delete(save=False)
+
+    def test_upload_attachment_non_posted_grpo(self):
+        """Test that attachments cannot be added to non-POSTED GRPOs"""
+        grpo = self._create_posted_grpo()
+        grpo.status = GRPOStatus.PENDING
+        grpo.save()
+
+        service = GRPOService(company_code="TC001")
+        test_file = SimpleUploadedFile("invoice.pdf", b"content")
+
+        with self.assertRaises(ValueError) as context:
+            service.upload_grpo_attachment(
+                grpo_posting_id=grpo.id,
+                file=test_file,
+                user=self.user
+            )
+        self.assertIn("Only POSTED", str(context.exception))
+
+    def test_upload_attachment_no_sap_doc_entry(self):
+        """Test that attachments need SAP DocEntry"""
+        grpo = self._create_posted_grpo()
+        grpo.sap_doc_entry = None
+        grpo.save()
+
+        service = GRPOService(company_code="TC001")
+        test_file = SimpleUploadedFile("invoice.pdf", b"content")
+
+        with self.assertRaises(ValueError) as context:
+            service.upload_grpo_attachment(
+                grpo_posting_id=grpo.id,
+                file=test_file,
+                user=self.user
+            )
+        self.assertIn("no SAP DocEntry", str(context.exception))
+
+    @patch('grpo.services.SAPClient')
+    def test_retry_attachment_upload_success(self, mock_sap_client):
+        """Test retrying a failed attachment upload"""
+        mock_instance = MagicMock()
+        mock_instance.upload_attachment.return_value = {"AbsoluteEntry": 999}
+        mock_instance.link_attachment_to_grpo.return_value = {
+            "DocEntry": 12345, "AttachmentEntry": 999
+        }
+        mock_sap_client.return_value = mock_instance
+
+        grpo = self._create_posted_grpo()
+        test_file = SimpleUploadedFile("invoice.pdf", b"content")
+        attachment = GRPOAttachment.objects.create(
+            grpo_posting=grpo, file=test_file,
+            original_filename="invoice.pdf",
+            sap_attachment_status=SAPAttachmentStatus.FAILED,
+            sap_error_message="Previous error"
+        )
+
+        service = GRPOService(company_code="TC001")
+        result = service.retry_attachment_upload(attachment_id=attachment.id)
+
+        self.assertEqual(result.sap_attachment_status, SAPAttachmentStatus.LINKED)
+        self.assertEqual(result.sap_absolute_entry, 999)
+        self.assertIsNone(result.sap_error_message)
+
+        # Clean up
+        result.file.delete(save=False)
+
+    @patch('grpo.services.SAPClient')
+    def test_retry_skips_upload_if_already_uploaded(self, mock_sap_client):
+        """Test retry skips upload when sap_absolute_entry already set"""
+        mock_instance = MagicMock()
+        mock_instance.link_attachment_to_grpo.return_value = {
+            "DocEntry": 12345, "AttachmentEntry": 555
+        }
+        mock_sap_client.return_value = mock_instance
+
+        grpo = self._create_posted_grpo()
+        test_file = SimpleUploadedFile("invoice.pdf", b"content")
+        attachment = GRPOAttachment.objects.create(
+            grpo_posting=grpo, file=test_file,
+            original_filename="invoice.pdf",
+            sap_attachment_status=SAPAttachmentStatus.FAILED,
+            sap_absolute_entry=555,  # Already uploaded
+            sap_error_message="Link failed"
+        )
+
+        service = GRPOService(company_code="TC001")
+        result = service.retry_attachment_upload(attachment_id=attachment.id)
+
+        # Upload should NOT be called since absolute_entry exists
+        mock_instance.upload_attachment.assert_not_called()
+        mock_instance.link_attachment_to_grpo.assert_called_once_with(
+            doc_entry=12345, absolute_entry=555
+        )
+        self.assertEqual(result.sap_attachment_status, SAPAttachmentStatus.LINKED)
+
+        # Clean up
+        result.file.delete(save=False)
+
+    def test_retry_already_linked(self):
+        """Test that already linked attachments cannot be retried"""
+        grpo = self._create_posted_grpo()
+        test_file = SimpleUploadedFile("invoice.pdf", b"content")
+        attachment = GRPOAttachment.objects.create(
+            grpo_posting=grpo, file=test_file,
+            original_filename="invoice.pdf",
+            sap_attachment_status=SAPAttachmentStatus.LINKED,
+            sap_absolute_entry=789
+        )
+
+        service = GRPOService(company_code="TC001")
+        with self.assertRaises(ValueError) as context:
+            service.retry_attachment_upload(attachment_id=attachment.id)
+        self.assertIn("already", str(context.exception))
+
+        # Clean up
+        attachment.file.delete(save=False)
+
+
+class GRPOAttachmentAPITests(APITestCase):
+    """Tests for GRPO attachment API endpoints"""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.company = Company.objects.create(name="Test Company", code="TC001")
+        cls.user = User.objects.create_user(
+            email="testuser@example.com", password="testpass123",
+            full_name="Test User", employee_code="EMP001"
+        )
+        cls.vehicle_type = VehicleType.objects.create(name="TRUCK")
+        cls.vehicle = Vehicle.objects.create(
+            vehicle_number="MH12AB1234", vehicle_type=cls.vehicle_type
+        )
+        cls.driver = Driver.objects.create(
+            name="Test Driver", mobile_no="9876543210", license_no="DL123456"
+        )
+        cls.vehicle_entry = VehicleEntry.objects.create(
+            entry_no="VE-2024-001", company=cls.company,
+            vehicle=cls.vehicle, driver=cls.driver,
+            entry_type="RAW_MATERIAL", status=GateEntryStatus.COMPLETED
+        )
+        cls.po_receipt = POReceipt.objects.create(
+            vehicle_entry=cls.vehicle_entry, po_number="PO-001",
+            supplier_code="SUP001", supplier_name="Test Supplier",
+            sap_doc_entry=12345
+        )
+        cls.grpo_posting = GRPOPosting.objects.create(
+            vehicle_entry=cls.vehicle_entry, po_receipt=cls.po_receipt,
+            status=GRPOStatus.POSTED, sap_doc_entry=12345, sap_doc_num=456
+        )
+
+    def setUp(self):
+        self.client = APIClient()
+
+    def test_attachment_list_unauthenticated(self):
+        """Test unauthenticated access to attachment list"""
+        url = f"/api/v1/grpo/{self.grpo_posting.id}/attachments/"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_attachment_upload_unauthenticated(self):
+        """Test unauthenticated upload is rejected"""
+        url = f"/api/v1/grpo/{self.grpo_posting.id}/attachments/"
+        test_file = SimpleUploadedFile("invoice.pdf", b"content")
+        response = self.client.post(url, {"file": test_file}, format="multipart")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_attachment_delete_unauthenticated(self):
+        """Test unauthenticated delete is rejected"""
+        url = f"/api/v1/grpo/{self.grpo_posting.id}/attachments/1/"
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_attachment_retry_unauthenticated(self):
+        """Test unauthenticated retry is rejected"""
+        url = f"/api/v1/grpo/{self.grpo_posting.id}/attachments/1/retry/"
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class GRPOPostingSerializerWithAttachmentsTest(TestCase):
+    """Test that GRPOPostingSerializer includes attachments"""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.company = Company.objects.create(name="Test Company", code="TC001")
+        cls.user = User.objects.create_user(
+            email="testuser@example.com", password="testpass123",
+            full_name="Test User", employee_code="EMP001"
+        )
+        cls.vehicle_type = VehicleType.objects.create(name="TRUCK")
+        cls.vehicle = Vehicle.objects.create(
+            vehicle_number="MH12AB1234", vehicle_type=cls.vehicle_type
+        )
+        cls.driver = Driver.objects.create(
+            name="Test Driver", mobile_no="9876543210", license_no="DL123456"
+        )
+        cls.vehicle_entry = VehicleEntry.objects.create(
+            entry_no="VE-2024-001", company=cls.company,
+            vehicle=cls.vehicle, driver=cls.driver,
+            entry_type="RAW_MATERIAL", status=GateEntryStatus.COMPLETED
+        )
+        cls.po_receipt = POReceipt.objects.create(
+            vehicle_entry=cls.vehicle_entry, po_number="PO-001",
+            supplier_code="SUP001", supplier_name="Test Supplier",
+            sap_doc_entry=12345
+        )
+
+    def test_posting_serializer_includes_attachments(self):
+        """Test that GRPOPostingSerializer includes attachments field"""
+        from grpo.serializers import GRPOPostingSerializer
+
+        grpo = GRPOPosting.objects.create(
+            vehicle_entry=self.vehicle_entry, po_receipt=self.po_receipt,
+            status=GRPOStatus.POSTED, sap_doc_entry=12345, sap_doc_num=456
+        )
+
+        # Create an attachment
+        test_file = SimpleUploadedFile("invoice.pdf", b"content")
+        GRPOAttachment.objects.create(
+            grpo_posting=grpo, file=test_file,
+            original_filename="invoice.pdf",
+            sap_attachment_status=SAPAttachmentStatus.LINKED,
+            sap_absolute_entry=789
+        )
+
+        serializer = GRPOPostingSerializer(grpo)
+        data = serializer.data
+
+        self.assertIn("attachments", data)
+        self.assertEqual(len(data["attachments"]), 1)
+        self.assertEqual(data["attachments"][0]["original_filename"], "invoice.pdf")
+        self.assertEqual(data["attachments"][0]["sap_attachment_status"], "LINKED")
+        self.assertEqual(data["attachments"][0]["sap_absolute_entry"], 789)
+
+        # Clean up
+        grpo.attachments.first().file.delete(save=False)

@@ -3,7 +3,7 @@
 ## Summary of All Changes
 
 ### What Changed
-The GRPO posting flow was updated to support **PO-linked GRPO** (BaseEntry/BaseLine/BaseType), additional line-level fields, vendor references, extra charges, and structured comments. Address handling was removed — SAP inherits the address automatically from the linked PO.
+The GRPO posting flow was updated to support **PO-linked GRPO** (BaseEntry/BaseLine/BaseType), additional line-level fields, vendor references, extra charges, structured comments, and **file attachments with SAP sync**. Address handling was removed — SAP inherits the address automatically from the linked PO.
 
 ### Files Modified
 
@@ -11,16 +11,23 @@ The GRPO posting flow was updated to support **PO-linked GRPO** (BaseEntry/BaseL
 |------|-------------|
 | `sap_client/hana/po_reader.py` | Expanded HANA query to also fetch `TaxCode`, `WhsCode`, `AcctCode` from POR1 and `BPLId`, `NumAtCard` from OPOR |
 | `sap_client/dtos.py` | Added `tax_code`, `warehouse_code`, `account_code` to `POItemDTO`; added `branch_id`, `vendor_ref` to `PODTO` |
+| `sap_client/service_layer/attachment_writer.py` | **New** — SAP Attachments2 upload + link to GRPO document via PATCH |
+| `sap_client/client.py` | Added `upload_attachment()` and `link_attachment_to_grpo()` methods |
 | `raw_material_gatein/models/po_receipt.py` | Added `sap_doc_entry`, `branch_id`, `vendor_ref` fields |
 | `raw_material_gatein/models/po_item_receipt.py` | Added `sap_line_num`, `unit_price`, `tax_code`, `warehouse_code`, `gl_account` fields |
 | `raw_material_gatein/views.py` | Updated `ReceivePOAPI` to extract and store all PO header/line fields during PO receive |
-| `grpo/serializers.py` | Added pre-fill fields to preview serializer; added `GRPOItemInputSerializer`, `ExtraChargeInputSerializer` |
-| `grpo/services.py` | Preview returns all PO details; PO linking logic, line-level fields, structured comments, vendor ref, extra charges |
-| `grpo/views.py` | Updated `PostGRPOAPI` to pass new fields to service |
-| `grpo/models.py` | Added `base_entry` and `base_line` to `GRPOLinePosting` |
-| `grpo/tests.py` | 22 tests covering all functionality including pre-fill verification |
+| `grpo/models.py` | Added `base_entry`/`base_line` to `GRPOLinePosting`; added `SAPAttachmentStatus` + `GRPOAttachment` model |
+| `grpo/serializers.py` | Added pre-fill fields, `GRPOItemInputSerializer`, `ExtraChargeInputSerializer`, `GRPOAttachmentSerializer`, `GRPOAttachmentUploadSerializer`; updated `GRPOPostingSerializer` with attachments |
+| `grpo/services.py` | Preview returns all PO details; PO linking logic; added `upload_grpo_attachment()`, `retry_attachment_upload()` |
+| `grpo/views.py` | Updated `PostGRPOAPI`; added `GRPOAttachmentListCreateAPI`, `GRPOAttachmentDeleteAPI`, `GRPOAttachmentRetryAPI` |
+| `grpo/urls.py` | Added 3 new attachment URL patterns |
+| `grpo/permissions.py` | Added `CanManageGRPOAttachments` permission |
+| `grpo/admin.py` | Added `GRPOAttachmentInline` to `GRPOPostingAdmin` |
+| `grpo/tests.py` | 37 tests covering all functionality including attachments |
 | `raw_material_gatein/migrations/0009_add_sap_po_linking_fields.py` | Migration for sap_doc_entry, sap_line_num |
 | `raw_material_gatein/migrations/0010_add_po_detail_fields.py` | Migration for unit_price, tax_code, warehouse_code, gl_account, branch_id, vendor_ref |
+| `grpo/migrations/0008_grpoattachment.py` | Migration for GRPOAttachment model |
+| `grpo/migrations/0009_update_grpo_group_attachments.py` | Data migration for attachment permissions |
 
 ---
 
@@ -35,6 +42,10 @@ The GRPO posting flow was updated to support **PO-linked GRPO** (BaseEntry/BaseL
 | POST | `/api/grpo/post/` | Post GRPO to SAP |
 | GET | `/api/grpo/history/` | GRPO posting history |
 | GET | `/api/grpo/<posting_id>/` | GRPO posting detail |
+| GET | `/api/grpo/<posting_id>/attachments/` | List attachments for a GRPO posting |
+| POST | `/api/grpo/<posting_id>/attachments/` | Upload attachment (multipart/form-data) |
+| DELETE | `/api/grpo/<posting_id>/attachments/<attachment_id>/` | Delete an attachment |
+| POST | `/api/grpo/<posting_id>/attachments/<attachment_id>/retry/` | Retry failed SAP upload |
 
 **All endpoints require:**
 - `Authorization: Token <token>` header
@@ -499,6 +510,18 @@ X-Company-Code: COMP01
         "base_entry": 12345,
         "base_line": 1
       }
+    ],
+    "attachments": [
+      {
+        "id": 1,
+        "file": "/media/grpo_attachments/invoice_abc123.pdf",
+        "original_filename": "invoice.pdf",
+        "sap_attachment_status": "LINKED",
+        "sap_absolute_entry": 456,
+        "sap_error_message": null,
+        "uploaded_at": "2026-02-28T12:00:00Z",
+        "uploaded_by": 5
+      }
     ]
   }
 ]
@@ -518,12 +541,171 @@ X-Company-Code: COMP01
 ```
 
 ### Response (200 OK)
-Same structure as a single item in the history response above.
+Same structure as a single item in the history response above (includes `lines` and `attachments`).
 
 ### Response (404 Not Found)
 ```json
 {
   "detail": "GRPO posting not found"
+}
+```
+
+---
+
+## 6. POST /api/grpo/<posting_id>/attachments/
+
+Upload an attachment for a GRPO posting. The file is saved locally, then uploaded to SAP Attachments2 endpoint, and linked to the GRPO document.
+
+### Request
+```
+POST /api/grpo/15/attachments/
+Authorization: Token abc123
+X-Company-Code: COMP01
+Content-Type: multipart/form-data
+
+file: <binary file data>
+```
+
+### Response (201 Created)
+```json
+{
+  "id": 1,
+  "file": "/media/grpo_attachments/invoice_abc123.pdf",
+  "original_filename": "invoice.pdf",
+  "sap_attachment_status": "LINKED",
+  "sap_absolute_entry": 456,
+  "sap_error_message": null,
+  "uploaded_at": "2026-02-28T12:00:00Z",
+  "uploaded_by": 5
+}
+```
+
+**If SAP upload fails**, the file is still saved locally and the response will show:
+```json
+{
+  "id": 1,
+  "file": "/media/grpo_attachments/invoice_abc123.pdf",
+  "original_filename": "invoice.pdf",
+  "sap_attachment_status": "FAILED",
+  "sap_absolute_entry": null,
+  "sap_error_message": "Unable to connect to SAP Service Layer",
+  "uploaded_at": "2026-02-28T12:00:00Z",
+  "uploaded_by": 5
+}
+```
+
+### Error Responses
+
+**400 Bad Request — GRPO Not Posted**
+```json
+{
+  "detail": "Cannot attach files to GRPO with status 'PENDING'. Only POSTED GRPOs accept attachments."
+}
+```
+
+**400 Bad Request — No File Provided**
+```json
+{
+  "detail": "Invalid file upload",
+  "errors": {"file": ["No file was submitted."]}
+}
+```
+
+---
+
+## 7. GET /api/grpo/<posting_id>/attachments/
+
+List all attachments for a GRPO posting.
+
+### Request
+```
+GET /api/grpo/15/attachments/
+Authorization: Token abc123
+X-Company-Code: COMP01
+```
+
+### Response (200 OK)
+```json
+[
+  {
+    "id": 1,
+    "file": "/media/grpo_attachments/invoice_abc123.pdf",
+    "original_filename": "invoice.pdf",
+    "sap_attachment_status": "LINKED",
+    "sap_absolute_entry": 456,
+    "sap_error_message": null,
+    "uploaded_at": "2026-02-28T12:00:00Z",
+    "uploaded_by": 5
+  },
+  {
+    "id": 2,
+    "file": "/media/grpo_attachments/challan_def456.jpg",
+    "original_filename": "challan.jpg",
+    "sap_attachment_status": "FAILED",
+    "sap_absolute_entry": null,
+    "sap_error_message": "SAP Service Layer connection timeout",
+    "uploaded_at": "2026-02-28T12:05:00Z",
+    "uploaded_by": 5
+  }
+]
+```
+
+---
+
+## 8. DELETE /api/grpo/<posting_id>/attachments/<attachment_id>/
+
+Delete an attachment. Removes both the database record and the physical file.
+
+### Request
+```
+DELETE /api/grpo/15/attachments/2/
+Authorization: Token abc123
+X-Company-Code: COMP01
+```
+
+### Response (204 No Content)
+No body returned.
+
+### Response (404 Not Found)
+```json
+{
+  "detail": "Attachment not found"
+}
+```
+
+---
+
+## 9. POST /api/grpo/<posting_id>/attachments/<attachment_id>/retry/
+
+Retry uploading a FAILED attachment to SAP. If the file was already uploaded to SAP (has `sap_absolute_entry`) but linking failed, it will skip re-upload and only retry the link.
+
+### Request
+```
+POST /api/grpo/15/attachments/2/retry/
+Authorization: Token abc123
+X-Company-Code: COMP01
+```
+
+### Response (200 OK)
+```json
+{
+  "id": 2,
+  "file": "/media/grpo_attachments/challan_def456.jpg",
+  "original_filename": "challan.jpg",
+  "sap_attachment_status": "LINKED",
+  "sap_absolute_entry": 789,
+  "sap_error_message": null,
+  "uploaded_at": "2026-02-28T12:05:00Z",
+  "uploaded_by": 5
+}
+```
+
+### Error Responses
+
+**400 Bad Request — Already Linked**
+```json
+{
+  "detail": "Attachment is already 'LINKED'. Only PENDING or FAILED attachments can be retried."
 }
 ```
 

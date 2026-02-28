@@ -11,7 +11,7 @@ from quality_control.enums import InspectionStatus
 from sap_client.client import SAPClient
 from sap_client.exceptions import SAPConnectionError, SAPDataError, SAPValidationError
 
-from .models import GRPOPosting, GRPOLinePosting, GRPOStatus
+from .models import GRPOPosting, GRPOLinePosting, GRPOStatus, GRPOAttachment, SAPAttachmentStatus
 
 logger = logging.getLogger(__name__)
 
@@ -398,9 +398,163 @@ class GRPOService:
             "vehicle_entry",
             "po_receipt",
             "posted_by"
-        ).prefetch_related("lines")
+        ).prefetch_related("lines", "attachments")
 
         if vehicle_entry_id:
             queryset = queryset.filter(vehicle_entry_id=vehicle_entry_id)
 
         return queryset.order_by("-created_at")
+
+    def upload_grpo_attachment(
+        self,
+        grpo_posting_id: int,
+        file,
+        user
+    ) -> GRPOAttachment:
+        """
+        Upload an attachment for a GRPO posting.
+        1. Save file locally (via Django FileField)
+        2. Upload to SAP Attachments2 endpoint
+        3. Link to the GRPO document via PATCH
+        4. Update local record with SAP response
+        """
+        # Validate GRPO posting exists and is POSTED
+        try:
+            grpo_posting = GRPOPosting.objects.get(id=grpo_posting_id)
+        except GRPOPosting.DoesNotExist:
+            raise ValueError(f"GRPO posting {grpo_posting_id} not found")
+
+        if grpo_posting.status != GRPOStatus.POSTED:
+            raise ValueError(
+                f"Cannot attach files to GRPO with status '{grpo_posting.status}'. "
+                f"Only POSTED GRPOs accept attachments."
+            )
+
+        if not grpo_posting.sap_doc_entry:
+            raise ValueError("GRPO posting has no SAP DocEntry. Cannot upload attachment.")
+
+        # Step 1: Save file locally
+        attachment = GRPOAttachment.objects.create(
+            grpo_posting=grpo_posting,
+            file=file,
+            original_filename=file.name,
+            sap_attachment_status=SAPAttachmentStatus.PENDING,
+            uploaded_by=user,
+        )
+
+        # Step 2: Upload to SAP Attachments2
+        try:
+            sap_client = SAPClient(company_code=self.company_code)
+            sap_result = sap_client.upload_attachment(
+                file_path=attachment.file.path,
+                filename=attachment.original_filename
+            )
+
+            absolute_entry = sap_result.get("AbsoluteEntry")
+            if not absolute_entry:
+                raise SAPDataError("SAP did not return AbsoluteEntry")
+
+            attachment.sap_absolute_entry = absolute_entry
+            attachment.sap_attachment_status = SAPAttachmentStatus.UPLOADED
+            attachment.save(update_fields=[
+                "sap_absolute_entry", "sap_attachment_status"
+            ])
+
+            # Step 3: Link attachment to the GRPO document
+            sap_client.link_attachment_to_grpo(
+                doc_entry=grpo_posting.sap_doc_entry,
+                absolute_entry=absolute_entry
+            )
+
+            attachment.sap_attachment_status = SAPAttachmentStatus.LINKED
+            attachment.save(update_fields=["sap_attachment_status"])
+
+            logger.info(
+                f"Attachment '{attachment.original_filename}' uploaded and linked "
+                f"to GRPO DocEntry {grpo_posting.sap_doc_entry}"
+            )
+
+            return attachment
+
+        except (SAPValidationError, SAPConnectionError, SAPDataError) as e:
+            attachment.sap_attachment_status = SAPAttachmentStatus.FAILED
+            attachment.sap_error_message = str(e)
+            attachment.save(update_fields=[
+                "sap_attachment_status", "sap_error_message"
+            ])
+            logger.error(
+                f"Failed to upload attachment for GRPO {grpo_posting_id}: {e}"
+            )
+            # Return attachment with FAILED status — file is saved locally
+            return attachment
+
+    def retry_attachment_upload(
+        self,
+        attachment_id: int,
+    ) -> GRPOAttachment:
+        """
+        Retry uploading a FAILED attachment to SAP.
+        If upload succeeded but link failed, skips re-upload.
+        """
+        try:
+            attachment = GRPOAttachment.objects.select_related(
+                "grpo_posting"
+            ).get(id=attachment_id)
+        except GRPOAttachment.DoesNotExist:
+            raise ValueError(f"Attachment {attachment_id} not found")
+
+        if attachment.sap_attachment_status not in [
+            SAPAttachmentStatus.PENDING,
+            SAPAttachmentStatus.FAILED
+        ]:
+            raise ValueError(
+                f"Attachment is already '{attachment.sap_attachment_status}'. "
+                f"Only PENDING or FAILED attachments can be retried."
+            )
+
+        grpo_posting = attachment.grpo_posting
+        if not grpo_posting.sap_doc_entry:
+            raise ValueError("GRPO posting has no SAP DocEntry.")
+
+        try:
+            sap_client = SAPClient(company_code=self.company_code)
+
+            # If upload succeeded but link failed, skip re-upload
+            if attachment.sap_absolute_entry:
+                absolute_entry = attachment.sap_absolute_entry
+            else:
+                sap_result = sap_client.upload_attachment(
+                    file_path=attachment.file.path,
+                    filename=attachment.original_filename
+                )
+                absolute_entry = sap_result.get("AbsoluteEntry")
+                if not absolute_entry:
+                    raise SAPDataError("SAP did not return AbsoluteEntry")
+
+                attachment.sap_absolute_entry = absolute_entry
+                attachment.sap_attachment_status = SAPAttachmentStatus.UPLOADED
+                attachment.save(update_fields=[
+                    "sap_absolute_entry", "sap_attachment_status"
+                ])
+
+            # Link to document
+            sap_client.link_attachment_to_grpo(
+                doc_entry=grpo_posting.sap_doc_entry,
+                absolute_entry=absolute_entry
+            )
+
+            attachment.sap_attachment_status = SAPAttachmentStatus.LINKED
+            attachment.sap_error_message = None
+            attachment.save(update_fields=[
+                "sap_attachment_status", "sap_error_message"
+            ])
+
+            return attachment
+
+        except (SAPValidationError, SAPConnectionError, SAPDataError) as e:
+            attachment.sap_attachment_status = SAPAttachmentStatus.FAILED
+            attachment.sap_error_message = str(e)
+            attachment.save(update_fields=[
+                "sap_attachment_status", "sap_error_message"
+            ])
+            return attachment
