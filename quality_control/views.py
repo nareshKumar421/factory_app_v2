@@ -6,6 +6,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.shortcuts import get_object_or_404
+from django.db import IntegrityError
 from django.db.models import Q, Count
 
 from company.permissions import HasCompanyContext
@@ -515,30 +516,39 @@ class InspectionCreateUpdateAPI(APIView):
 
         internal_lot_no = data.pop("internal_lot_no", None) or RawMaterialInspection.generate_lot_no()
 
-        inspection, created = RawMaterialInspection.objects.get_or_create(
-            arrival_slip=slip,
-            defaults={
-                "report_no": RawMaterialInspection.generate_report_no(),
-                "internal_lot_no": internal_lot_no,
-                "material_type": material_type,
-                "created_by": request.user,
-                **data
-            }
-        )
+        try:
+            inspection, created = RawMaterialInspection.objects.get_or_create(
+                arrival_slip=slip,
+                defaults={
+                    "report_no": RawMaterialInspection.generate_report_no(),
+                    "internal_lot_no": internal_lot_no,
+                    "material_type": material_type,
+                    "created_by": request.user,
+                    **data
+                }
+            )
 
-        if not created:
-            if inspection.is_locked:
-                return Response(
-                    {"detail": "Inspection is locked"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+            if not created:
+                if inspection.is_locked:
+                    return Response(
+                        {"detail": "Inspection is locked"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
 
-            for key, value in data.items():
-                setattr(inspection, key, value)
-            if material_type:
-                inspection.material_type = material_type
-            inspection.updated_by = request.user
-            inspection.save()
+                for key, value in data.items():
+                    setattr(inspection, key, value)
+                if material_type:
+                    inspection.material_type = material_type
+                # Update internal_lot_no if provided in request
+                if internal_lot_no and internal_lot_no != inspection.internal_lot_no:
+                    inspection.internal_lot_no = internal_lot_no
+                inspection.updated_by = request.user
+                inspection.save()
+        except IntegrityError:
+            return Response(
+                {"internal_lot_no": [f"Internal lot number '{internal_lot_no}' already exists."]},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         # Create parameter results if material type has parameters
         if material_type and created:
