@@ -79,7 +79,13 @@ class GRPOService:
                     "accepted_qty": item.accepted_qty,
                     "rejected_qty": item.rejected_qty,
                     "uom": item.uom,
-                    "qc_status": qc_status
+                    "qc_status": qc_status,
+                    # Pre-filled from PO for GRPO posting
+                    "unit_price": item.unit_price,
+                    "tax_code": item.tax_code or "",
+                    "warehouse_code": item.warehouse_code or "",
+                    "gl_account": item.gl_account or "",
+                    "sap_line_num": item.sap_line_num,
                 })
 
             result.append({
@@ -92,6 +98,9 @@ class GRPOService:
                 "supplier_code": po_receipt.supplier_code,
                 "supplier_name": po_receipt.supplier_name,
                 "sap_doc_entry": po_receipt.sap_doc_entry,
+                # Pre-filled from PO for GRPO posting
+                "branch_id": po_receipt.branch_id,
+                "vendor_ref": po_receipt.vendor_ref or "",
                 "invoice_no": po_receipt.invoice_no or "",
                 "invoice_date": po_receipt.invoice_date,
                 "challan_no": po_receipt.challan_no or "",

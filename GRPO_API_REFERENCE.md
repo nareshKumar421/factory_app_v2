@@ -9,15 +9,18 @@ The GRPO posting flow was updated to support **PO-linked GRPO** (BaseEntry/BaseL
 
 | File | What Changed |
 |------|-------------|
-| `raw_material_gatein/models/po_receipt.py` | Added `sap_doc_entry` field (stores SAP PO DocEntry from OPOR) |
-| `raw_material_gatein/models/po_item_receipt.py` | Added `sap_line_num` field (stores SAP PO LineNum from POR1) |
-| `raw_material_gatein/views.py` | Updated `ReceivePOAPI` to extract and store `sap_doc_entry` and `sap_line_num` during PO receive |
-| `grpo/serializers.py` | Added `GRPOItemInputSerializer` (unit_price, tax_code, gl_account, variety), `ExtraChargeInputSerializer`, updated request/response serializers |
-| `grpo/services.py` | PO linking logic, line-level fields, structured comments, vendor ref, extra charges |
+| `sap_client/hana/po_reader.py` | Expanded HANA query to also fetch `TaxCode`, `WhsCode`, `AcctCode` from POR1 and `BPLId`, `NumAtCard` from OPOR |
+| `sap_client/dtos.py` | Added `tax_code`, `warehouse_code`, `account_code` to `POItemDTO`; added `branch_id`, `vendor_ref` to `PODTO` |
+| `raw_material_gatein/models/po_receipt.py` | Added `sap_doc_entry`, `branch_id`, `vendor_ref` fields |
+| `raw_material_gatein/models/po_item_receipt.py` | Added `sap_line_num`, `unit_price`, `tax_code`, `warehouse_code`, `gl_account` fields |
+| `raw_material_gatein/views.py` | Updated `ReceivePOAPI` to extract and store all PO header/line fields during PO receive |
+| `grpo/serializers.py` | Added pre-fill fields to preview serializer; added `GRPOItemInputSerializer`, `ExtraChargeInputSerializer` |
+| `grpo/services.py` | Preview returns all PO details; PO linking logic, line-level fields, structured comments, vendor ref, extra charges |
 | `grpo/views.py` | Updated `PostGRPOAPI` to pass new fields to service |
 | `grpo/models.py` | Added `base_entry` and `base_line` to `GRPOLinePosting` |
-| `grpo/tests.py` | 22 tests covering all new functionality |
-| `raw_material_gatein/migrations/0009_add_sap_po_linking_fields.py` | Migration for new fields |
+| `grpo/tests.py` | 22 tests covering all functionality including pre-fill verification |
+| `raw_material_gatein/migrations/0009_add_sap_po_linking_fields.py` | Migration for sap_doc_entry, sap_line_num |
+| `raw_material_gatein/migrations/0010_add_po_detail_fields.py` | Migration for unit_price, tax_code, warehouse_code, gl_account, branch_id, vendor_ref |
 
 ---
 
@@ -107,6 +110,8 @@ X-Company-Code: COMP01
     "supplier_code": "V10001",
     "supplier_name": "ABC Suppliers Pvt Ltd",
     "sap_doc_entry": 12345,
+    "branch_id": 1,
+    "vendor_ref": "VINV-2026-789",
     "invoice_no": "INV-9876",
     "invoice_date": "2026-02-25",
     "challan_no": "CH-5432",
@@ -120,7 +125,12 @@ X-Company-Code: COMP01
         "accepted_qty": "950.000",
         "rejected_qty": "30.000",
         "uom": "KG",
-        "qc_status": "ACCEPTED"
+        "qc_status": "ACCEPTED",
+        "unit_price": "85.500000",
+        "tax_code": "GST18",
+        "warehouse_code": "WH-01",
+        "gl_account": "40001001",
+        "sap_line_num": 0
       },
       {
         "po_item_receipt_id": 202,
@@ -131,7 +141,12 @@ X-Company-Code: COMP01
         "accepted_qty": "500.000",
         "rejected_qty": "0.000",
         "uom": "KG",
-        "qc_status": "ACCEPTED"
+        "qc_status": "ACCEPTED",
+        "unit_price": "92.000000",
+        "tax_code": "GST18",
+        "warehouse_code": "WH-01",
+        "gl_account": "40001001",
+        "sap_line_num": 1
       }
     ],
     "grpo_status": null,
@@ -147,6 +162,8 @@ X-Company-Code: COMP01
     "supplier_code": "V10001",
     "supplier_name": "ABC Suppliers Pvt Ltd",
     "sap_doc_entry": 12346,
+    "branch_id": 1,
+    "vendor_ref": "",
     "invoice_no": "",
     "invoice_date": null,
     "challan_no": "",
@@ -160,7 +177,12 @@ X-Company-Code: COMP01
         "accepted_qty": "200.000",
         "rejected_qty": "0.000",
         "uom": "BAG",
-        "qc_status": "ACCEPTED"
+        "qc_status": "ACCEPTED",
+        "unit_price": "350.000000",
+        "tax_code": "GST28",
+        "warehouse_code": "WH-02",
+        "gl_account": "40002001",
+        "sap_line_num": 0
       }
     ],
     "grpo_status": "POSTED",
@@ -171,9 +193,27 @@ X-Company-Code: COMP01
 
 **Notes:**
 - `sap_doc_entry` is the SAP PO DocEntry — needed for PO linking in GRPO
+- `branch_id` is pre-filled from the PO (OPOR.BPLId) — use directly in the POST request
+- `vendor_ref` is pre-filled from the PO (OPOR.NumAtCard) — use directly in the POST request
+- Per-item fields `unit_price`, `tax_code`, `warehouse_code`, `gl_account` are all pre-filled from the PO — the frontend can show these to the user and pass them directly in the POST request
 - `grpo_status = null` means not yet posted; `"POSTED"` means already done
 - `qc_status` values: `ACCEPTED`, `REJECTED`, `PARTIALLY_ACCEPTED`, `NO_ARRIVAL_SLIP`, `ARRIVAL_SLIP_PENDING`, `INSPECTION_PENDING`
 - `is_ready_for_grpo` is `true` only when gate entry status is `COMPLETED` or `QC_COMPLETED`
+
+### Pre-filled Fields Mapping (Preview to Post)
+
+The preview returns PO details that can be used directly in the GRPO POST request. Here's the mapping:
+
+| Preview Field (from GET) | POST Field (to send) | Level |
+|--------------------------|---------------------|-------|
+| `branch_id` | `branch_id` | Header |
+| `vendor_ref` | `vendor_ref` | Header |
+| Per-item `warehouse_code` | `warehouse_code` | Header (same for all) |
+| Per-item `unit_price` | items[].`unit_price` | Line |
+| Per-item `tax_code` | items[].`tax_code` | Line |
+| Per-item `gl_account` | items[].`gl_account` | Line |
+
+**User only needs to fill:** `accepted_qty` per item (and optionally `variety`, `comments`, `extra_charges`)
 
 ### Response (404 Not Found)
 ```json
@@ -562,15 +602,22 @@ Same structure as a single item in the history response above.
 | GET /history/ | `can_view_grpo_history` |
 | GET /detail/ | `view_grpoposting` (Django default) |
 
-### 12. Data Flow (End to End)
+### 12. Preview Pre-fills Everything from PO
+- The preview API now returns **all PO details** so the frontend can pre-fill the posting form
+- **Header-level**: `branch_id`, `vendor_ref` come pre-filled from the PO
+- **Item-level**: `unit_price`, `tax_code`, `warehouse_code`, `gl_account` come pre-filled per item
+- The user only needs to confirm/edit `accepted_qty` per item and optionally add `variety`, `comments`, or `extra_charges`
+- These fields are stored during PO receive (from SAP HANA) and returned at preview time — no extra SAP call needed
+
+### 13. Data Flow (End to End)
 
 ```
 1. Gate Entry Created (driver_management)
          |
 2. PO Received (raw_material_gatein/ReceivePOAPI)
-   - Fetches PO from SAP HANA
-   - Stores sap_doc_entry on POReceipt
-   - Stores sap_line_num on POItemReceipt
+   - Fetches PO from SAP HANA (OPOR + POR1)
+   - Stores on POReceipt: sap_doc_entry, branch_id, vendor_ref
+   - Stores on POItemReceipt: sap_line_num, unit_price, tax_code, warehouse_code, gl_account
          |
 3. QC Inspection (quality_control)
    - Sets accepted_qty, rejected_qty
@@ -578,27 +625,48 @@ Same structure as a single item in the history response above.
 4. Gate Entry Completed (status = COMPLETED / QC_COMPLETED)
          |
 5. GRPO Preview (grpo/GRPOPreviewAPI)
-   - Shows all POs with items, QC status
-   - Shows which POs are already posted
+   - Returns ALL PO details (pre-filled for the posting form)
+   - Shows QC status, quantities, and which POs are already posted
+   - Frontend uses this to pre-fill the GRPO posting form
          |
 6. GRPO Post (grpo/PostGRPOAPI)
-   - Builds SAP payload with PO linking
+   - User confirms/edits accepted_qty and optionally adds variety, comments, extra_charges
+   - Builds SAP payload with PO linking (BaseEntry/BaseLine/BaseType)
    - Posts to SAP Service Layer: POST /b1s/v2/PurchaseDeliveryNotes
    - Records result in GRPOPosting + GRPOLinePosting
 ```
 
-### 13. SAP Service Layer Endpoint
+### 14. SAP Service Layer Endpoint
 - **URL:** `POST /b1s/v2/PurchaseDeliveryNotes`
 - This is the SAP B1 Service Layer endpoint for GRPO (Goods Receipt PO)
 - The SAP client handles login/session management automatically
 
-### 14. Database Models
+### 15. SAP HANA Fields Fetched During PO Receive
+
+| HANA Column | Stored In | Field Name | Used For |
+|-------------|-----------|------------|----------|
+| `OPOR.DocEntry` | POReceipt | `sap_doc_entry` | BaseEntry in GRPO |
+| `OPOR.BPLId` | POReceipt | `branch_id` | BPL_IDAssignedToInvoice |
+| `OPOR.NumAtCard` | POReceipt | `vendor_ref` | NumAtCard |
+| `POR1.LineNum` | POItemReceipt | `sap_line_num` | BaseLine in GRPO |
+| `POR1.Price` | POItemReceipt | `unit_price` | UnitPrice |
+| `POR1.TaxCode` | POItemReceipt | `tax_code` | TaxCode |
+| `POR1.WhsCode` | POItemReceipt | `warehouse_code` | WarehouseCode |
+| `POR1.AcctCode` | POItemReceipt | `gl_account` | AccountCode |
+
+### 16. Database Models
 
 **POReceipt** (raw_material_gatein)
 - `sap_doc_entry` — SAP PO DocEntry (integer, nullable)
+- `branch_id` — SAP Branch/Business Place ID (integer, nullable)
+- `vendor_ref` — Vendor reference from PO (string)
 
 **POItemReceipt** (raw_material_gatein)
 - `sap_line_num` — SAP PO LineNum (integer, nullable)
+- `unit_price` — Unit price from PO (decimal, nullable)
+- `tax_code` — Tax code from PO (string)
+- `warehouse_code` — Warehouse code from PO (string)
+- `gl_account` — G/L Account from PO (string)
 
 **GRPOPosting** (grpo)
 - `vehicle_entry` — FK to VehicleEntry

@@ -180,7 +180,9 @@ class GRPOServiceTests(TestCase):
             po_number="PO-001",
             supplier_code="SUP001",
             supplier_name="Test Supplier",
-            sap_doc_entry=12345
+            sap_doc_entry=12345,
+            branch_id=1,
+            vendor_ref="VINV-2026-001"
         )
 
         cls.po_item = POItemReceipt.objects.create(
@@ -192,6 +194,10 @@ class GRPOServiceTests(TestCase):
             accepted_qty=Decimal("95.000"),
             rejected_qty=Decimal("5.000"),
             sap_line_num=0,
+            unit_price=Decimal("85.500000"),
+            tax_code="GST18",
+            warehouse_code="WH-01",
+            gl_account="40001001",
             uom="KG"
         )
 
@@ -204,16 +210,29 @@ class GRPOServiceTests(TestCase):
         self.assertEqual(entries[0].entry_no, "VE-2024-001")
 
     def test_get_grpo_preview_data(self):
-        """Test getting GRPO preview data includes sap_doc_entry"""
+        """Test getting GRPO preview data returns all PO details for pre-fill"""
         service = GRPOService(company_code="TC001")
         preview_data = service.get_grpo_preview_data(self.vehicle_entry.id)
 
         self.assertEqual(len(preview_data), 1)
-        self.assertEqual(preview_data[0]["po_number"], "PO-001")
-        self.assertEqual(preview_data[0]["supplier_code"], "SUP001")
-        self.assertEqual(preview_data[0]["sap_doc_entry"], 12345)
-        self.assertTrue(preview_data[0]["is_ready_for_grpo"])
-        self.assertEqual(len(preview_data[0]["items"]), 1)
+        po_data = preview_data[0]
+
+        # PO header fields
+        self.assertEqual(po_data["po_number"], "PO-001")
+        self.assertEqual(po_data["supplier_code"], "SUP001")
+        self.assertEqual(po_data["sap_doc_entry"], 12345)
+        self.assertEqual(po_data["branch_id"], 1)
+        self.assertEqual(po_data["vendor_ref"], "VINV-2026-001")
+        self.assertTrue(po_data["is_ready_for_grpo"])
+
+        # Item-level pre-filled fields
+        self.assertEqual(len(po_data["items"]), 1)
+        item = po_data["items"][0]
+        self.assertEqual(item["unit_price"], Decimal("85.500000"))
+        self.assertEqual(item["tax_code"], "GST18")
+        self.assertEqual(item["warehouse_code"], "WH-01")
+        self.assertEqual(item["gl_account"], "40001001")
+        self.assertEqual(item["sap_line_num"], 0)
 
     def test_get_grpo_preview_invalid_entry(self):
         """Test getting preview data for non-existent entry"""

@@ -64,16 +64,24 @@ class ReceivePOAPI(APIView):
                 code=502
             )
     
-        # Build SAP items map (remaining_qty, line_num) and find PO DocEntry
+        # Build SAP items map and extract PO header fields
         sap_items_map = {}
         sap_doc_entry = None
+        sap_branch_id = None
+        sap_vendor_ref = ""
         for po in sap_pos:
             if po.po_number == po_number:
                 sap_doc_entry = po.doc_entry
+                sap_branch_id = po.branch_id
+                sap_vendor_ref = po.vendor_ref or ""
                 for i in po.items:
                     sap_items_map[i.po_item_code] = {
                         "remaining_qty": i.remaining_qty,
                         "line_num": i.line_num,
+                        "rate": i.rate,
+                        "tax_code": i.tax_code,
+                        "warehouse_code": i.warehouse_code,
+                        "account_code": i.account_code,
                     }
 
         # Create PO receipt header (after SAP validation succeeds)
@@ -83,6 +91,8 @@ class ReceivePOAPI(APIView):
             supplier_code=supplier_code,
             supplier_name=supplier_name,
             sap_doc_entry=sap_doc_entry,
+            branch_id=sap_branch_id,
+            vendor_ref=sap_vendor_ref,
             created_by=request.user
         )
     
@@ -115,6 +125,10 @@ class ReceivePOAPI(APIView):
                 po_receipt=po_receipt,
                 **item_data,
                 sap_line_num=sap_item_info["line_num"],
+                unit_price=sap_item_info["rate"] or None,
+                tax_code=sap_item_info["tax_code"],
+                warehouse_code=sap_item_info["warehouse_code"],
+                gl_account=sap_item_info["account_code"],
                 created_by=request.user
             )
     

@@ -14,6 +14,15 @@ class GRPOLineDetailSerializer(serializers.Serializer):
     uom = serializers.CharField()
     qc_status = serializers.CharField()
 
+    # Pre-filled from SAP PO — use these values during GRPO posting
+    unit_price = serializers.DecimalField(
+        max_digits=18, decimal_places=6, allow_null=True
+    )
+    tax_code = serializers.CharField(allow_blank=True)
+    warehouse_code = serializers.CharField(allow_blank=True)
+    gl_account = serializers.CharField(allow_blank=True)
+    sap_line_num = serializers.IntegerField(allow_null=True)
+
 
 class GRPOPreviewSerializer(serializers.Serializer):
     """
@@ -32,6 +41,10 @@ class GRPOPreviewSerializer(serializers.Serializer):
 
     # SAP PO reference for PO linking
     sap_doc_entry = serializers.IntegerField(allow_null=True)
+
+    # Pre-filled from SAP PO — use these values during GRPO posting
+    branch_id = serializers.IntegerField(allow_null=True)
+    vendor_ref = serializers.CharField(allow_blank=True)
 
     invoice_no = serializers.CharField(allow_blank=True)
     invoice_date = serializers.DateField(allow_null=True)

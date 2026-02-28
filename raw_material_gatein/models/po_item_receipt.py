@@ -20,6 +20,24 @@ class POItemReceipt(BaseModel):
         help_text="SAP PO LineNum (from POR1) - used as BaseLine in GRPO"
     )
 
+    # SAP PO line fields for GRPO pre-fill
+    unit_price = models.DecimalField(
+        max_digits=18, decimal_places=6, null=True, blank=True,
+        help_text="Unit price from PO (POR1.Price)"
+    )
+    tax_code = models.CharField(
+        max_length=20, blank=True, default="",
+        help_text="Tax code from PO (POR1.TaxCode)"
+    )
+    warehouse_code = models.CharField(
+        max_length=20, blank=True, default="",
+        help_text="Warehouse code from PO (POR1.WhsCode)"
+    )
+    gl_account = models.CharField(
+        max_length=30, blank=True, default="",
+        help_text="G/L Account from PO (POR1.AcctCode)"
+    )
+
     ordered_qty = models.DecimalField(max_digits=12, decimal_places=3)
     received_qty = models.DecimalField(max_digits=12, decimal_places=3)
 
