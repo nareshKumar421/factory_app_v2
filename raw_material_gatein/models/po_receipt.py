@@ -15,6 +15,12 @@ class POReceipt(BaseModel):
     supplier_code = models.CharField(max_length=30)
     supplier_name = models.CharField(max_length=150)
 
+    # SAP PO reference - needed for GRPO PO linking
+    sap_doc_entry = models.IntegerField(
+        null=True, blank=True,
+        help_text="SAP PO DocEntry (from OPOR) - used as BaseEntry in GRPO"
+    )
+
     invoice_no = models.CharField(max_length=50, blank=True)
     invoice_date = models.DateField(null=True, blank=True)
     challan_no = models.CharField(max_length=50, blank=True)

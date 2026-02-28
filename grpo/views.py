@@ -88,20 +88,10 @@ class GRPOPreviewAPI(APIView):
 class PostGRPOAPI(APIView):
     """
     Post GRPO to SAP for a specific PO receipt.
-    Updates accepted quantities in POItemReceipt before posting.
+    Includes PO linking (BaseEntry/BaseLine/BaseType), new line-level fields,
+    vendor reference, extra charges, and structured comments.
 
     POST /api/grpo/post/
-    {
-        "vehicle_entry_id": 123,
-        "po_receipt_id": 456,
-        "items": [
-            {"po_item_receipt_id": 1, "accepted_qty": 100.5},
-            {"po_item_receipt_id": 2, "accepted_qty": 50.0}
-        ],
-        "branch_id": 1,  // required - SAP Branch ID (BPLId)
-        "warehouse_code": "WH01",  // optional
-        "comments": "Gate entry completed"  // optional
-    }
     """
     permission_classes = [IsAuthenticated, HasCompanyContext, CanCreateGRPOPosting]
 
@@ -123,7 +113,9 @@ class PostGRPOAPI(APIView):
                 items=serializer.validated_data["items"],
                 branch_id=serializer.validated_data["branch_id"],
                 warehouse_code=serializer.validated_data.get("warehouse_code"),
-                comments=serializer.validated_data.get("comments")
+                comments=serializer.validated_data.get("comments"),
+                vendor_ref=serializer.validated_data.get("vendor_ref"),
+                extra_charges=serializer.validated_data.get("extra_charges"),
             )
 
             response_data = {

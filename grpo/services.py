@@ -91,6 +91,7 @@ class GRPOService:
                 "po_number": po_receipt.po_number,
                 "supplier_code": po_receipt.supplier_code,
                 "supplier_name": po_receipt.supplier_name,
+                "sap_doc_entry": po_receipt.sap_doc_entry,
                 "invoice_no": po_receipt.invoice_no or "",
                 "invoice_date": po_receipt.invoice_date,
                 "challan_no": po_receipt.challan_no or "",
@@ -116,6 +117,29 @@ class GRPOService:
         inspection = arrival_slip.inspection
         return inspection.final_status
 
+    def _build_structured_comments(
+        self,
+        user,
+        po_receipt: POReceipt,
+        vehicle_entry: VehicleEntry,
+        user_comments: Optional[str] = None
+    ) -> str:
+        """Build structured comments string for SAP GRPO."""
+        full_name = user.get_full_name() if hasattr(user, 'get_full_name') else str(user)
+        username = getattr(user, 'username', getattr(user, 'email', str(user)))
+
+        parts = [
+            f"App: FactoryApp v2",
+            f"User: {full_name} ({username})",
+            f"PO: {po_receipt.po_number}",
+            f"Gate Entry: {vehicle_entry.entry_no}",
+        ]
+
+        if user_comments:
+            parts.append(user_comments)
+
+        return " | ".join(parts)
+
     @transaction.atomic
     def post_grpo(
         self,
@@ -125,7 +149,9 @@ class GRPOService:
         items: List[Dict[str, Any]],
         branch_id: int,
         warehouse_code: Optional[str] = None,
-        comments: Optional[str] = None
+        comments: Optional[str] = None,
+        vendor_ref: Optional[str] = None,
+        extra_charges: Optional[List[Dict[str, Any]]] = None
     ) -> GRPOPosting:
         """
         Post GRPO to SAP for a specific PO receipt.
@@ -135,10 +161,12 @@ class GRPOService:
             vehicle_entry_id: ID of the vehicle entry
             po_receipt_id: ID of the PO receipt
             user: User posting the GRPO
-            items: List of dicts with po_item_receipt_id and accepted_qty
+            items: List of dicts with po_item_receipt_id, accepted_qty, and optional fields
             branch_id: SAP Branch/Business Place ID (BPLId)
             warehouse_code: Optional warehouse code for SAP
-            comments: Optional comments for SAP document
+            comments: Optional user comments for SAP document
+            vendor_ref: Optional vendor reference number (NumAtCard)
+            extra_charges: Optional list of additional expense dicts
         """
         # Get vehicle entry and PO receipt
         try:
@@ -153,19 +181,19 @@ class GRPOService:
         except POReceipt.DoesNotExist:
             raise ValueError(f"PO receipt {po_receipt_id} not found for this vehicle entry")
 
-        # Create a mapping of item IDs to accepted quantities from input
-        items_qty_map = {item["po_item_receipt_id"]: item["accepted_qty"] for item in items}
+        # Create a mapping of item IDs to input data
+        items_input_map = {item["po_item_receipt_id"]: item for item in items}
 
         # Validate all item IDs belong to this PO receipt
         po_item_ids = set(po_receipt.items.values_list("id", flat=True))
-        invalid_ids = set(items_qty_map.keys()) - po_item_ids
+        invalid_ids = set(items_input_map.keys()) - po_item_ids
         if invalid_ids:
             raise ValueError(f"Invalid PO item receipt IDs: {invalid_ids}")
 
         # Update accepted and rejected quantities in POItemReceipt
         for item in po_receipt.items.all():
-            if item.id in items_qty_map:
-                accepted_qty = items_qty_map[item.id]
+            if item.id in items_input_map:
+                accepted_qty = items_input_map[item.id]["accepted_qty"]
                 # Validate accepted_qty doesn't exceed received_qty
                 if accepted_qty > item.received_qty:
                     raise ValueError(
@@ -208,7 +236,7 @@ class GRPOService:
             }
         )
 
-        # Build GRPO payload
+        # Build GRPO document lines
         document_lines = []
         grpo_lines_data = []
 
@@ -217,22 +245,46 @@ class GRPOService:
             if item.accepted_qty <= 0:
                 continue
 
+            # Get per-item input data (unit_price, tax_code, etc.)
+            item_input = items_input_map.get(item.id, {})
+
             line_data = {
                 "ItemCode": item.po_item_code,
                 "Quantity": str(item.accepted_qty),
             }
 
+            # PO Linking - BaseEntry/BaseLine/BaseType
+            if po_receipt.sap_doc_entry and item.sap_line_num is not None:
+                line_data["BaseEntry"] = po_receipt.sap_doc_entry
+                line_data["BaseLine"] = item.sap_line_num
+                line_data["BaseType"] = 22  # 22 = Purchase Order
+
             if warehouse_code:
                 line_data["WarehouseCode"] = warehouse_code
 
-            # Note: BaseEntry, BaseLine, BaseType would need to come from
-            # SAP PO data if linking to PO. For now, we create standalone GRPO.
-            # TODO: Add PO linking support when DocEntry is available
+            # Optional line-level fields from request
+            unit_price = item_input.get("unit_price")
+            if unit_price is not None:
+                line_data["UnitPrice"] = float(unit_price)
+
+            tax_code = item_input.get("tax_code")
+            if tax_code:
+                line_data["TaxCode"] = tax_code
+
+            gl_account = item_input.get("gl_account")
+            if gl_account:
+                line_data["AccountCode"] = gl_account
+
+            variety = item_input.get("variety")
+            if variety:
+                line_data["U_Variety"] = variety
 
             document_lines.append(line_data)
             grpo_lines_data.append({
                 "po_item_receipt": item,
-                "quantity_posted": item.accepted_qty
+                "quantity_posted": item.accepted_qty,
+                "base_entry": po_receipt.sap_doc_entry,
+                "base_line": item.sap_line_num,
             })
 
         if not document_lines:
@@ -241,18 +293,40 @@ class GRPOService:
             grpo_posting.save()
             raise ValueError("No accepted quantities to post for this PO")
 
-        # Build full payload
+        # Build structured comments
+        structured_comments = self._build_structured_comments(
+            user, po_receipt, vehicle_entry, comments
+        )
+
+        # Build full SAP payload
         grpo_payload = {
             "CardCode": po_receipt.supplier_code,
             "BPL_IDAssignedToInvoice": branch_id,
+            "Comments": structured_comments,
             "DocumentLines": document_lines
         }
 
-        if comments:
-            grpo_payload["Comments"] = comments
+        # Optional header fields
+        if vendor_ref:
+            grpo_payload["NumAtCard"] = vendor_ref
+
+        # Extra charges (DocumentAdditionalExpenses)
+        if extra_charges:
+            additional_expenses = []
+            for charge in extra_charges:
+                expense = {
+                    "ExpenseCode": charge["expense_code"],
+                    "LineTotal": float(charge["amount"]),
+                }
+                if charge.get("remarks"):
+                    expense["Remarks"] = charge["remarks"]
+                if charge.get("tax_code"):
+                    expense["TaxCode"] = charge["tax_code"]
+                additional_expenses.append(expense)
+            grpo_payload["DocumentAdditionalExpenses"] = additional_expenses
 
         # Log payload for debugging
-        logger.info(f"GRPO Payload: {grpo_payload}")
+        logger.info(f"GRPO Payload for PO {po_receipt.po_number}: {grpo_payload}")
 
         # Post to SAP
         try:
@@ -268,12 +342,14 @@ class GRPOService:
             grpo_posting.posted_by = user
             grpo_posting.save()
 
-            # Create line posting records
+            # Create line posting records with PO linking info
             for line_data in grpo_lines_data:
                 GRPOLinePosting.objects.create(
                     grpo_posting=grpo_posting,
                     po_item_receipt=line_data["po_item_receipt"],
-                    quantity_posted=line_data["quantity_posted"]
+                    quantity_posted=line_data["quantity_posted"],
+                    base_entry=line_data["base_entry"],
+                    base_line=line_data["base_line"],
                 )
 
             logger.info(

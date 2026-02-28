@@ -14,6 +14,12 @@ class POItemReceipt(BaseModel):
     po_item_code = models.CharField(max_length=50)
     item_name = models.CharField(max_length=200)
 
+    # SAP PO line reference - needed for GRPO PO linking
+    sap_line_num = models.IntegerField(
+        null=True, blank=True,
+        help_text="SAP PO LineNum (from POR1) - used as BaseLine in GRPO"
+    )
+
     ordered_qty = models.DecimalField(max_digits=12, decimal_places=3)
     received_qty = models.DecimalField(max_digits=12, decimal_places=3)
 
