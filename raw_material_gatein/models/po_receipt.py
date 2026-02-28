@@ -12,6 +12,10 @@ class POReceipt(BaseModel):
     )
 
     po_number = models.CharField(max_length=30)
+    sap_doc_entry = models.IntegerField(
+        null=True, blank=True,
+        help_text="SAP PO DocEntry (internal ID) for GRPO linking"
+    )
     supplier_code = models.CharField(max_length=30)
     supplier_name = models.CharField(max_length=150)
 

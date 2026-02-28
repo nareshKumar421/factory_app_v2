@@ -8,7 +8,7 @@ class ServiceLayerSession:
 
     def login(self):
         response = requests.post(
-            f"{self.sl['base_url']}/b1s/v2/Login",
+            f"{self.sl['base_url']}/b1s/v1/Login",
             json={
                 "CompanyDB": self.sl["company_db"],
                 "UserName": self.sl["username"],

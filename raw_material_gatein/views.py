@@ -64,21 +64,26 @@ class ReceivePOAPI(APIView):
                 code=502
             )
     
+        # Build SAP items map and extract DocEntry/LineNum for PO linking
+        sap_items_map = {}
+        sap_doc_entry = None
+        sap_line_num_map = {}
+        for po in sap_pos:
+            if po.po_number == po_number:
+                sap_doc_entry = po.doc_entry
+                for i in po.items:
+                    sap_items_map[i.po_item_code] = i.remaining_qty
+                    sap_line_num_map[i.po_item_code] = i.line_num
+
         # Create PO receipt header (after SAP validation succeeds)
         po_receipt = POReceipt.objects.create(
             vehicle_entry=entry,
             po_number=po_number,
+            sap_doc_entry=sap_doc_entry,
             supplier_code=supplier_code,
             supplier_name=supplier_name,
             created_by=request.user
         )
-    
-        # Build SAP items map
-        sap_items_map = {}
-        for po in sap_pos:
-            if po.po_number == po_number:
-                for i in po.items:
-                    sap_items_map[i.po_item_code] = i.remaining_qty
     
         # Validate and create item receipts
         for item_data in items_data:
@@ -106,6 +111,7 @@ class ReceivePOAPI(APIView):
             POItemReceipt.objects.create(
                 po_receipt=po_receipt,
                 **item_data,
+                line_num=sap_line_num_map.get(po_item_code),
                 created_by=request.user
             )
     

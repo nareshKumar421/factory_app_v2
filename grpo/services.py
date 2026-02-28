@@ -225,14 +225,18 @@ class GRPOService:
             if warehouse_code:
                 line_data["WarehouseCode"] = warehouse_code
 
-            # Note: BaseEntry, BaseLine, BaseType would need to come from
-            # SAP PO data if linking to PO. For now, we create standalone GRPO.
-            # TODO: Add PO linking support when DocEntry is available
+            # Link GRPO to PO in SAP using BaseEntry/BaseLine/BaseType
+            if po_receipt.sap_doc_entry and item.line_num is not None:
+                line_data["BaseEntry"] = po_receipt.sap_doc_entry
+                line_data["BaseLine"] = item.line_num
+                line_data["BaseType"] = 22  # 22 = Purchase Order
 
             document_lines.append(line_data)
             grpo_lines_data.append({
                 "po_item_receipt": item,
-                "quantity_posted": item.accepted_qty
+                "quantity_posted": item.accepted_qty,
+                "base_entry": po_receipt.sap_doc_entry,
+                "base_line": item.line_num,
             })
 
         if not document_lines:
@@ -247,6 +251,10 @@ class GRPOService:
             "BPL_IDAssignedToInvoice": branch_id,
             "DocumentLines": document_lines
         }
+
+        # NumAtCard = Vendor Ref. No. (invoice/challan number)
+        if po_receipt.invoice_no:
+            grpo_payload["NumAtCard"] = po_receipt.invoice_no
 
         if comments:
             grpo_payload["Comments"] = comments
@@ -273,7 +281,9 @@ class GRPOService:
                 GRPOLinePosting.objects.create(
                     grpo_posting=grpo_posting,
                     po_item_receipt=line_data["po_item_receipt"],
-                    quantity_posted=line_data["quantity_posted"]
+                    quantity_posted=line_data["quantity_posted"],
+                    base_entry=line_data.get("base_entry"),
+                    base_line=line_data.get("base_line"),
                 )
 
             logger.info(
