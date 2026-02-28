@@ -76,7 +76,7 @@ class EntryService:
             entry_data["labour"] = labour_obj
 
         # Copy optional fields
-        optional_fields = ["purpose", "vehicle_no", "remarks"]
+        optional_fields = ["purpose", "vehicle_no", "remarks", "actual_entry_time"]
         for field in optional_fields:
             if data.get(field):
                 entry_data[field] = data[field]
@@ -116,6 +116,7 @@ class EntryService:
         approved_by_obj = None
         if validated_data.get("approved_by"):
             approved_by_obj = User.objects.get(id=validated_data["approved_by"])
+        actual_entry_time = validated_data.get("actual_entry_time")
 
         labours_data = validated_data["labours"]
         labour_ids = [item["labour_id"] for item in labours_data]
@@ -171,6 +172,7 @@ class EntryService:
                 name_snapshot=labour_obj.name,
                 photo_snapshot=labour_obj.photo if labour_obj.photo else None,
                 gate_in=gate_in_obj,
+                actual_entry_time=actual_entry_time,
                 purpose=item.get("purpose", ""),
                 vehicle_no=item.get("vehicle_no", ""),
                 remarks=item.get("remarks", ""),

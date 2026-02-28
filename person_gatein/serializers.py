@@ -67,6 +67,7 @@ class BulkLabourEntryRequestSerializer(serializers.Serializer):
     gate_in = serializers.IntegerField()
     person_type = serializers.IntegerField()
     approved_by = serializers.IntegerField(required=False)
+    actual_entry_time = serializers.DateTimeField(required=False)
     labours = BulkLabourEntryItemSerializer(many=True)
 
     def validate_labours(self, value):
