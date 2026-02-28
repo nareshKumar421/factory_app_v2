@@ -229,10 +229,10 @@ class RawMaterialInspectionSerializer(serializers.ModelSerializer):
     attachments = ArrivalSlipAttachmentSerializer(
         source="arrival_slip.attachments", many=True, read_only=True
     )
-    qa_chemist_name = serializers.CharField(source="qa_chemist.full_name", read_only=True)
-    qam_name = serializers.CharField(source="qam.full_name", read_only=True)
-    rejected_by_name = serializers.CharField(source="rejected_by.full_name", read_only=True)
-    material_type_name = serializers.CharField(source="material_type.name", read_only=True)
+    qa_chemist_name = serializers.CharField(source="qa_chemist.full_name", read_only=True, allow_null=True, default=None)
+    qam_name = serializers.CharField(source="qam.full_name", read_only=True, allow_null=True, default=None)
+    rejected_by_name = serializers.CharField(source="rejected_by.full_name", read_only=True, allow_null=True, default=None)
+    material_type_name = serializers.CharField(source="material_type.name", read_only=True, allow_null=True, default=None)
 
     # Arrival slip info
     arrival_slip_id = serializers.IntegerField(source="arrival_slip.id", read_only=True)
